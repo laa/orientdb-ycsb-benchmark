@@ -478,8 +478,17 @@ public class Client {
     String label;
 
     props.setProperty("hdrhistogram.fileoutput", System.getProperty("ycsb.hdrhistogram.fileoutput", "true"));
-    props.setProperty("hdrhistogram.output.path",
-        System.getProperty("ycsb.hdrhistogram.output.path", "." + File.separator + "target" + File.separator + "hdr" + File.separator));
+    final String hdrPath = System
+        .getProperty("ycsb.hdrhistogram.output.path", "." + File.separator + "target" + File.separator + "hdr" + File.separator);
+    final File hdr = new File(hdrPath);
+    if (!hdr.exists()) {
+      if (!hdr.mkdirs()) {
+        System.out.println("Can not create files for hrdhistogram files");
+        System.exit(1);
+      }
+    }
+
+    props.setProperty("hdrhistogram.output.path", hdrPath);
 
     final int tcount = Integer.parseInt(System.getProperty("ycsb.threads", "1"));
     props.setProperty(THREAD_COUNT_PROPERTY, String.valueOf(tcount));
