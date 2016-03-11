@@ -477,7 +477,7 @@ public class Client {
     boolean status = false;
     String label;
 
-    props.setProperty("hdrhistogram.fileoutput", System.getProperty("ycsb.hdrhistogram.fileoutput", "true"));
+    props.setProperty("hdrhistogram.fileoutput", System.getProperty("ycsb.hdrhistogram.fileoutput", "false"));
     final String hdrPath = System
         .getProperty("ycsb.hdrhistogram.output.path", "." + File.separator + "target" + File.separator + "hdr" + File.separator);
     final File hdr = new File(hdrPath);
