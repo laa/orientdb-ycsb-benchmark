@@ -3,6 +3,7 @@ package com.orientechnologies.ycsb;
 import com.orientechnologies.orient.core.db.OPartitionedDatabasePool;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.dictionary.ODictionary;
+import com.orientechnologies.orient.core.exception.OConcurrentModificationException;
 import com.orientechnologies.orient.core.index.OIndexCursor;
 import com.orientechnologies.orient.core.record.ORecord;
 import com.orientechnologies.orient.core.record.impl.ODocument;
@@ -92,6 +93,7 @@ public class OrientDBClient extends DB {
 
   @Override
   public void cleanup() throws DBException {
+    databasePool.close();
   }
 
   /**
@@ -135,14 +137,18 @@ public class OrientDBClient extends DB {
    */
   @Override
   public Status delete(String table, String key) {
-    try (ODatabaseDocumentTx db = databasePool.acquire()) {
-      final ODictionary<ORecord> dictionary = db.getMetadata().getIndexManager().getDictionary();
-      dictionary.remove(key);
-      return Status.OK;
-    } catch (Exception e) {
-      e.printStackTrace();
+    while (true) {
+      try (ODatabaseDocumentTx db = databasePool.acquire()) {
+        final ODictionary<ORecord> dictionary = db.getMetadata().getIndexManager().getDictionary();
+        dictionary.remove(key);
+        return Status.OK;
+      } catch (OConcurrentModificationException cme) {
+        continue;
+      } catch (Exception e) {
+        e.printStackTrace();
+        return Status.ERROR;
+      }
     }
-    return Status.ERROR;
   }
 
   /**
@@ -190,21 +196,25 @@ public class OrientDBClient extends DB {
    */
   @Override
   public Status update(String table, String key, HashMap<String, ByteIterator> values) {
-    try (ODatabaseDocumentTx db = databasePool.acquire()) {
-      final ODictionary<ORecord> dictionary = db.getMetadata().getIndexManager().getDictionary();
-      final ODocument document = dictionary.get(key);
-      if (document != null) {
-        for (Map.Entry<String, String> entry : StringByteIterator.getStringMap(values).entrySet()) {
-          document.field(entry.getKey(), entry.getValue());
-        }
+    while (true) {
+      try (ODatabaseDocumentTx db = databasePool.acquire()) {
+        final ODictionary<ORecord> dictionary = db.getMetadata().getIndexManager().getDictionary();
+        final ODocument document = dictionary.get(key);
+        if (document != null) {
+          for (Map.Entry<String, String> entry : StringByteIterator.getStringMap(values).entrySet()) {
+            document.field(entry.getKey(), entry.getValue());
+          }
 
-        document.save();
-        return Status.OK;
+          document.save();
+          return Status.OK;
+        }
+      } catch (OConcurrentModificationException cme) {
+        continue;
+      } catch (Exception e) {
+        e.printStackTrace();
+        return Status.ERROR;
       }
-    } catch (Exception e) {
-      e.printStackTrace();
     }
-    return Status.ERROR;
   }
 
   /**
