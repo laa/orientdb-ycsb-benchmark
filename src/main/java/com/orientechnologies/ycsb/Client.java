@@ -477,9 +477,10 @@ public class Client {
     boolean status = false;
     String label;
 
-    props.setProperty("hdrhistogram.fileoutput", System.getProperty("ycsb.hdrhistogram.fileoutput", "false"));
-    final String hdrPath = System
-        .getProperty("ycsb.hdrhistogram.output.path", "." + File.separator + "target" + File.separator + "hdr" + File.separator);
+    props.setProperty("hdrhistogram.fileoutput", getSystemProperty("ycsb.hdrhistogram.fileoutput", "false"));
+    final String hdrPath = getSystemProperty("ycsb.hdrhistogram.output.path",
+        "." + File.separator + "target" + File.separator + "hdr" + File.separator);
+
     final File hdr = new File(hdrPath);
     if (!hdr.exists()) {
       if (!hdr.mkdirs()) {
@@ -490,16 +491,16 @@ public class Client {
 
     props.setProperty("hdrhistogram.output.path", hdrPath);
 
-    final int tcount = Integer.parseInt(System.getProperty("ycsb.threads", "1"));
+    final int tcount = Integer.parseInt(getSystemProperty("ycsb.threads", "1"));
     props.setProperty(THREAD_COUNT_PROPERTY, String.valueOf(tcount));
 
-    final String starget = System.getProperty("ycsb.target");
+    final String starget = getSystemProperty("ycsb.target");
     if (starget != null) {
       final int ttarget = Integer.parseInt(starget);
       props.setProperty(TARGET_PROPERTY, String.valueOf(ttarget));
     }
 
-    final String sload = System.getProperty("ycsb.load");
+    final String sload = getSystemProperty("ycsb.load");
     if (sload == null) {
       System.out.println("System property ycsb.load must be specified.");
       System.exit(1);
@@ -507,13 +508,13 @@ public class Client {
 
     dotransactions = !Boolean.valueOf(sload);
 
-    if (Boolean.valueOf(System.getProperty("ycsb.status", "false"))) {
+    if (Boolean.valueOf(getSystemProperty("ycsb.status", "false"))) {
       status = true;
     }
 
-    label = System.getProperty("ycsb.label", "");
+    label = getSystemProperty("ycsb.label", "");
 
-    final String sworkload = System.getProperty("ycsb.workload");
+    final String sworkload = getSystemProperty("ycsb.workload");
     if (sworkload == null) {
       System.out.println("YCSB workload has to be specified (ycsb.workload)");
       System.exit(1);
@@ -528,22 +529,40 @@ public class Client {
     props.load(stream);
     stream.close();
 
-    final String soperationCount = System.getProperty("ycsb.operationcount");
+    final String soperationCount = getSystemProperty("ycsb.operationcount");
     if (soperationCount != null) {
       final int operationCount = Integer.parseInt(soperationCount);
       props.setProperty(OPERATION_COUNT_PROPERTY, String.valueOf(operationCount));
     }
 
-    final String srecordCount = System.getProperty("ycsb.recordcount");
+    final String srecordCount = getSystemProperty("ycsb.recordcount");
     if (srecordCount != null) {
       final int recordCount = Integer.parseInt(srecordCount);
       props.setProperty(RECORD_COUNT_PROPERTY, String.valueOf(recordCount));
     }
 
-    props.putAll(System.getProperties());
-
     if (!checkRequiredProperties(props)) {
       System.exit(1);
+    }
+
+    final String orientDbUrl = getSystemProperty("orientdb.url");
+    if (orientDbUrl != null) {
+      props.setProperty("orientdb.url", orientDbUrl);
+    }
+
+    final String orientDbUser = getSystemProperty("orientdb.user");
+    if (orientDbUser != null) {
+      props.setProperty("orientdb.user", orientDbUser);
+    }
+
+    final String orientDbPassword = getSystemProperty("orientdb.password");
+    if (orientDbPassword != null) {
+      props.setProperty("orientdb.password", orientDbPassword);
+    }
+
+    final String orientDbNew = getSystemProperty("orientdb.newdb");
+    if (orientDbNew != null) {
+      props.setProperty("orientdb.newdb", orientDbNew);
     }
 
     props.setProperty(DO_TRANSACTIONS_PROPERTY, String.valueOf(dotransactions));
@@ -711,5 +730,22 @@ public class Client {
     }
 
     System.exit(0);
+  }
+
+  private static String getSystemProperty(String name) {
+    final String value = System.getProperty(name);
+    if (value == null || value.isEmpty() || (value.startsWith("${") && value.endsWith("}")))
+      return null;
+
+    return value;
+  }
+
+  private static String getSystemProperty(String name, String defaultValue) {
+    final String value = getSystemProperty(name);
+    if (value == null) {
+      return defaultValue;
+    }
+
+    return value;
   }
 }

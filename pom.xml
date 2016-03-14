@@ -10,7 +10,7 @@
 
     <properties>
         <jackson.api.version>1.9.4</jackson.api.version>
-        <orientdb.version>2.2.0-beta</orientdb.version>
+        <orientdb.version>2.2.0-SNAPSHOT</orientdb.version>
     </properties>
 
     <build>
@@ -31,14 +31,31 @@
                 <executions>
                     <execution>
                         <goals>
-                            <goal>java</goal>
+                            <goal>exec</goal>
                         </goals>
                     </execution>
                 </executions>
                 <configuration>
-                    <mainClass>com.orientechnologies.ycsb.Client</mainClass>
+                     <executable>java</executable>
                     <arguments>
                         <argument>-XX:MaxDirectMemorySize=512g</argument>
+                        <argument>-Dycsb.hdrhistogram.fileoutput=${ycsb.hdrhistogram.fileoutput}</argument>
+                        <argument>-Dycsb.hdrhistogram.output.path=${ycsb.hdrhistogram.output.path}</argument>
+                        <argument>-Dycsb.threads=${ycsb.threads}</argument>
+                        <argument>-Dycsb.target=${ycsb.target}</argument>
+                        <argument>-Dycsb.load=${ycsb.load}</argument>
+                        <argument>-Dycsb.status=${ycsb.status}</argument>
+                        <argument>-Dycsb.label=${ycsb.label}</argument>
+                        <argument>-Dycsb.workload=${ycsb.workload}</argument>
+                        <argument>-Dycsb.operationcount=${ycsb.operationcount}</argument>
+                        <argument>-Dycsb.recordcount=${ycsb.recordcount}</argument>
+                        <argument>-Dorientdb.url=${orientdb.url}</argument>
+                        <argument>-Dorientdb.user=${orientdb.user}</argument>
+                        <argument>-Dorientdb.password=${orientdb.password}</argument>
+                        <argument>-Dorientdb.newdb=${orientdb.newdb}</argument>
+                        <argument>-classpath</argument>
+                        <classpath/>
+                        <argument>com.orientechnologies.ycsb.Client</argument>
                     </arguments>
                 </configuration>
             </plugin>

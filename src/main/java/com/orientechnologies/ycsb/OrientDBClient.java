@@ -1,5 +1,6 @@
 package com.orientechnologies.ycsb;
 
+import com.orientechnologies.orient.core.Orient;
 import com.orientechnologies.orient.core.db.OPartitionedDatabasePool;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.dictionary.ODictionary;
@@ -32,7 +33,8 @@ public class OrientDBClient extends DB {
   private static final Lock    initLock  = new ReentrantLock();
   private static       boolean dbCreated = false;
   private static volatile OPartitionedDatabasePool databasePool;
-  private static boolean initialized = false;
+  private static boolean initialized   = false;
+  private static int     clientCounter = 0;
 
   /**
    * Initialize any state for this DB. Called once per DB instance; there is one DB instance per client thread.
@@ -49,6 +51,7 @@ public class OrientDBClient extends DB {
 
     initLock.lock();
     try {
+      clientCounter++;
       if (!initialized) {
         System.out.println("OrientDB loading database url = " + url);
 
@@ -93,7 +96,17 @@ public class OrientDBClient extends DB {
 
   @Override
   public void cleanup() throws DBException {
-    databasePool.close();
+    initLock.lock();
+    try {
+      clientCounter--;
+      if (clientCounter == 0) {
+        databasePool.close();
+        Orient.instance().shutdown();
+      }
+    } finally {
+      initLock.unlock();
+    }
+
   }
 
   /**
