@@ -1,7 +1,7 @@
 # orientdb-ycsb-benchmark
 YCSB benchmark for OrientDB project which was refactored to run inside of maven. Based on 0.7 version of YCSB.
 
-Following YCSB properties are supported through system properties:
+Following YCSB properties are supported (should be porvided as maven system properties):
 
 `ycsb.threads` - amount of parallel threads for given benchmark, 1 by default.<br>
 `ycsb.target` - target of load test, amount of operations per second, unlimited by defautl.<br>
