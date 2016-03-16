@@ -1,5 +1,6 @@
 package com.orientechnologies.ycsb;
 
+import com.orientechnologies.orient.core.config.OGlobalConfiguration;
 import com.yahoo.ycsb.*;
 import com.yahoo.ycsb.measurements.Measurements;
 import com.yahoo.ycsb.measurements.exporter.MeasurementsExporter;
@@ -8,10 +9,7 @@ import com.yahoo.ycsb.measurements.exporter.TextMeasurementsExporter;
 import java.io.*;
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Properties;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
@@ -470,6 +468,18 @@ public class Client {
 
   @SuppressWarnings("unchecked")
   public static void main(String[] args) throws Exception {
+    final Properties settings = new Properties();
+
+    final String settingsFilePath = getSystemProperty("ycsb.settings", null);
+    if (settingsFilePath != null) {
+      final File settingsFile = new File(settingsFilePath);
+      if (settingsFile.exists()) {
+        InputStream settingsStream = new FileInputStream(settingsFile);
+        settings.load(settingsStream);
+        settingsStream.close();
+      }
+    }
+
     Properties props = new Properties();
     boolean dotransactions;
     int threadcount;
@@ -477,9 +487,9 @@ public class Client {
     boolean status = false;
     String label;
 
-    props.setProperty("hdrhistogram.fileoutput", getSystemProperty("ycsb.hdrhistogram.fileoutput", "false"));
+    props.setProperty("hdrhistogram.fileoutput", getSystemProperty("ycsb.hdrhistogram.fileoutput", "false", settings));
     final String hdrPath = getSystemProperty("ycsb.hdrhistogram.output.path",
-        "." + File.separator + "target" + File.separator + "hdr" + File.separator);
+        "." + File.separator + "target" + File.separator + "hdr" + File.separator, settings);
 
     final File hdr = new File(hdrPath);
     if (!hdr.exists()) {
@@ -491,16 +501,16 @@ public class Client {
 
     props.setProperty("hdrhistogram.output.path", hdrPath);
 
-    final int tcount = Integer.parseInt(getSystemProperty("ycsb.threads", "1"));
+    final int tcount = Integer.parseInt(getSystemProperty("ycsb.threads", "1", settings));
     props.setProperty(THREAD_COUNT_PROPERTY, String.valueOf(tcount));
 
-    final String starget = getSystemProperty("ycsb.target");
+    final String starget = getSystemProperty("ycsb.target", settings);
     if (starget != null) {
       final int ttarget = Integer.parseInt(starget);
       props.setProperty(TARGET_PROPERTY, String.valueOf(ttarget));
     }
 
-    final String sload = getSystemProperty("ycsb.load");
+    final String sload = getSystemProperty("ycsb.load", settings);
     if (sload == null) {
       System.out.println("System property ycsb.load must be specified.");
       System.exit(1);
@@ -508,13 +518,13 @@ public class Client {
 
     dotransactions = !Boolean.valueOf(sload);
 
-    if (Boolean.valueOf(getSystemProperty("ycsb.status", "false"))) {
+    if (Boolean.valueOf(getSystemProperty("ycsb.status", "false", settings))) {
       status = true;
     }
 
-    label = getSystemProperty("ycsb.label", "");
+    label = getSystemProperty("ycsb.label", "", settings);
 
-    final String sworkload = getSystemProperty("ycsb.workload");
+    final String sworkload = getSystemProperty("ycsb.workload", settings);
     if (sworkload == null) {
       System.out.println("YCSB workload has to be specified (ycsb.workload)");
       System.exit(1);
@@ -529,13 +539,13 @@ public class Client {
     props.load(stream);
     stream.close();
 
-    final String soperationCount = getSystemProperty("ycsb.operationcount");
+    final String soperationCount = getSystemProperty("ycsb.operationcount", settings);
     if (soperationCount != null) {
       final int operationCount = Integer.parseInt(soperationCount);
       props.setProperty(OPERATION_COUNT_PROPERTY, String.valueOf(operationCount));
     }
 
-    final String srecordCount = getSystemProperty("ycsb.recordcount");
+    final String srecordCount = getSystemProperty("ycsb.recordcount", settings);
     if (srecordCount != null) {
       final int recordCount = Integer.parseInt(srecordCount);
       props.setProperty(RECORD_COUNT_PROPERTY, String.valueOf(recordCount));
@@ -545,25 +555,27 @@ public class Client {
       System.exit(1);
     }
 
-    final String orientDbUrl = getSystemProperty("orientdb.url");
+    final String orientDbUrl = getSystemProperty("orientdb.url", settings);
     if (orientDbUrl != null) {
       props.setProperty("orientdb.url", orientDbUrl);
     }
 
-    final String orientDbUser = getSystemProperty("orientdb.user");
+    final String orientDbUser = getSystemProperty("orientdb.user", settings);
     if (orientDbUser != null) {
       props.setProperty("orientdb.user", orientDbUser);
     }
 
-    final String orientDbPassword = getSystemProperty("orientdb.password");
+    final String orientDbPassword = getSystemProperty("orientdb.password", settings);
     if (orientDbPassword != null) {
       props.setProperty("orientdb.password", orientDbPassword);
     }
 
-    final String orientDbNew = getSystemProperty("orientdb.newdb");
+    final String orientDbNew = getSystemProperty("orientdb.newdb", settings);
     if (orientDbNew != null) {
       props.setProperty("orientdb.newdb", orientDbNew);
     }
+
+    applyODBConfiguration(settings);
 
     props.setProperty(DO_TRANSACTIONS_PROPERTY, String.valueOf(dotransactions));
 
@@ -732,20 +744,34 @@ public class Client {
     System.exit(0);
   }
 
-  private static String getSystemProperty(String name) {
-    final String value = System.getProperty(name);
-    if (value == null || value.isEmpty() || (value.startsWith("${") && value.endsWith("}")))
-      return null;
+  private static String getSystemProperty(String name, Properties settings) {
+    String value = System.getProperty(name);
+    if (value == null || value.isEmpty() || (value.startsWith("${") && value.endsWith("}"))) {
+      if (settings != null)
+        value = settings.getProperty(name);
+      else
+        return null;
+    }
 
     return value;
   }
 
-  private static String getSystemProperty(String name, String defaultValue) {
-    final String value = getSystemProperty(name);
+  private static String getSystemProperty(String name, String defaultValue, Properties settings) {
+    final String value = getSystemProperty(name, settings);
     if (value == null) {
       return defaultValue;
     }
 
     return value;
+  }
+
+  private static void applyODBConfiguration(Properties properties) {
+    Map<String, Object> settings = new HashMap<>();
+
+    for (String name : properties.stringPropertyNames()) {
+      settings.put(name, properties.getProperty(name));
+    }
+
+    OGlobalConfiguration.setConfiguration(settings);
   }
 }

@@ -53,6 +53,7 @@
                         <argument>-Dorientdb.user=${orientdb.user}</argument>
                         <argument>-Dorientdb.password=${orientdb.password}</argument>
                         <argument>-Dorientdb.newdb=${orientdb.newdb}</argument>
+                        <argument>-Dycsb.settings=${ycsb.settings}</argument>
                         <argument>-classpath</argument>
                         <classpath/>
                         <argument>com.orientechnologies.ycsb.Client</argument>

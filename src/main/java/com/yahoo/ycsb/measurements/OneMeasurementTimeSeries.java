@@ -21,8 +21,6 @@ import java.io.IOException;
 import java.util.Vector;
 import java.util.Properties;
 import java.text.DecimalFormat;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import com.yahoo.ycsb.measurements.exporter.MeasurementsExporter;
 
@@ -57,8 +55,8 @@ public class OneMeasurementTimeSeries extends OneMeasurement
 
   long start=-1;
   long currentunit=-1;
-  int count=0;
-  int sum=0;
+  long count=0;
+  long sum=0;
   int operations=0;
   long totallatency=0;
 
@@ -66,8 +64,8 @@ public class OneMeasurementTimeSeries extends OneMeasurement
   int windowoperations=0;
   long windowtotallatency=0;
 
-  int min=-1;
-  int max=-1;
+  long min=-1;
+  long max=-1;
 
   public OneMeasurementTimeSeries(String name, Properties props)
   {
@@ -101,7 +99,7 @@ public class OneMeasurementTimeSeries extends OneMeasurement
   }
 
   @Override
-  public void measure(int latency)
+  public void measure(long latency)
   {
     checkEndOfUnit(false);
 

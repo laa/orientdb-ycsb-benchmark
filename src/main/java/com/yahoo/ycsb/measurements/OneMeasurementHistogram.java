@@ -21,9 +21,6 @@ import java.io.IOException;
 import java.text.DecimalFormat;
 import java.util.Properties;
 
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
-
 import com.yahoo.ycsb.measurements.exporter.MeasurementsExporter;
 
 
@@ -47,18 +44,18 @@ public class OneMeasurementHistogram extends OneMeasurement
   /**
      * Groups operations in discrete blocks of 1ms width.
      */
-  int[] histogram;
-  
+  long[] histogram;
+
   /**
    * Counts all operations outside the histogram's range.
    */
   int histogramoverflow;
-  
+
   /**
    * The total number of reported operations.
    */
   int operations;
-  
+
   /**
    * The sum of each latency measurement over all operations.
    * Calculated in ms.
@@ -71,19 +68,19 @@ public class OneMeasurementHistogram extends OneMeasurement
    * Calculated in ms. 
    */
   double totalsquaredlatency;
-  
+
   //keep a windowed version of these stats for printing status
   int windowoperations;
   long windowtotallatency;
 
-  int min;
-  int max;
+  long min;
+  long max;
 
   public OneMeasurementHistogram(String name, Properties props)
   {
     super(name);
     _buckets=Integer.parseInt(props.getProperty(BUCKETS, BUCKETS_DEFAULT));
-    histogram=new int[_buckets];
+    histogram=new long[_buckets];
     histogramoverflow=0;
     operations=0;
     totallatency=0;
@@ -97,7 +94,7 @@ public class OneMeasurementHistogram extends OneMeasurement
   /* (non-Javadoc)
    * @see com.yahoo.ycsb.OneMeasurement#measure(int)
    */
-  public synchronized void measure(int latency)
+  public synchronized void measure(long latency)
   {
       //latency reported in us and collected in bucket by ms.
     if (latency/1000>=_buckets)
@@ -106,7 +103,7 @@ public class OneMeasurementHistogram extends OneMeasurement
     }
     else
     {
-      histogram[latency/1000]++;
+      histogram[(int)(latency/1000)]++;
     }
     operations++;
     totallatency += latency;

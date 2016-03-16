@@ -17,14 +17,12 @@
 
 package com.yahoo.ycsb.measurements;
 
-import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.text.DecimalFormat;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.HdrHistogram.Histogram;
 import org.HdrHistogram.HistogramLogWriter;
@@ -89,9 +87,9 @@ public class OneMeasurementHdrHistogram extends OneMeasurement {
     * It appears latency is reported in micros.
     * Using {@link Recorder} to support concurrent updates to histogram.
     *
-    * @see com.yahoo.ycsb.OneMeasurement#measure(int)
+    * @param latencyInMicros
     */
-  public void measure(int latencyInMicros) {
+  public void measure(long latencyInMicros) {
     histogram.recordValue(latencyInMicros);
   }
 
@@ -117,7 +115,7 @@ public class OneMeasurementHdrHistogram extends OneMeasurement {
     for (Integer percentile: percentiles) {
       exporter.write(getName(), ordinal(percentile) + "PercentileLatency(us)", totalHistogram.getValueAtPercentile(percentile));
     }
-    
+
     exportStatusCounts(exporter);
   }
 
@@ -125,7 +123,7 @@ public class OneMeasurementHdrHistogram extends OneMeasurement {
 	 * This is called periodically from the StatusThread. There's a single
 	 * StatusThread per Client process. We optionally serialize the interval to
 	 * log on this opportunity.
-	 * 
+	 *
 	 * @see com.yahoo.ycsb.measurements.OneMeasurement#getSummary()
 	 */
 	@Override

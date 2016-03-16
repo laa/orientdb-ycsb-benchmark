@@ -41,9 +41,9 @@ public class OneMeasurementRaw extends OneMeasurement {
    */
   class RawDataPoint {
     private final long timestamp;
-    private final int value;
+    private final long value;
 
-    public RawDataPoint(int value) {
+    public RawDataPoint(long value) {
       this.timestamp = System.currentTimeMillis();
       this.value = value;
     }
@@ -52,7 +52,7 @@ public class OneMeasurementRaw extends OneMeasurement {
       return timestamp;
     }
 
-    public int value() {
+    public long value() {
       return value;
     }
   }
@@ -133,7 +133,7 @@ public class OneMeasurementRaw extends OneMeasurement {
   }
 
   @Override
-  public synchronized void measure(int latency) {
+  public synchronized void measure(long latency) {
     totalLatency += latency;
     windowTotalLatency += latency;
     windowOperations++;
