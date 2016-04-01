@@ -1,0 +1,119 @@
+apply plugin: 'java'
+
+repositories {
+    mavenCentral()
+    mavenLocal()
+}
+
+ext {
+    orientdbVersion = "2.2.0-SNAPSHOT"
+    jacksonApiVersion = "1.9.4"
+}
+
+
+dependencies {
+    compile group: 'com.orientechnologies', name: 'orientdb-core', version: orientdbVersion
+    compile group: 'org.codehaus.jackson', name: 'jackson-mapper-asl', version: jacksonApiVersion
+    compile group: 'org.codehaus.jackson', name: 'jackson-core-asl', version: jacksonApiVersion
+    compile group: 'org.hdrhistogram', name: 'HdrHistogram', version: '2.1.4'
+    testCompile group: 'org.testng', name: 'testng', version: '6.1.1'
+}
+
+task benchmark << {
+    def hdrhistogramFileoutput = System.getProperty("ycsb.hdrhistogram.fileoutput");
+    def hdrhistogramOutputPath = System.getProperty("ycsb.hdrhistogram.output.path");
+    def threads = System.getProperty("ycsb.threads");
+    def target = System.getProperty("ycsb.target");
+    def load = System.getProperty("ycsb.load");
+    def status = System.getProperty("ycsb.status");
+    def label = System.getProperty("ycsb.label");
+    def workload = System.getProperty("ycsb.workload");
+    def operationcount = System.getProperty("ycsb.operationcount");
+    def recordcount = System.getProperty("ycsb.recordcount");
+    def url = System.getProperty("orientdb.url");
+    def user = System.getProperty("orientdb.user");
+    def password = System.getProperty("orientdb.password");
+    def newdb = System.getProperty("orientdb.newdb");
+    def settings = System.getProperty("ycsb.settings");
+
+    def javaExec = System.getProperty("java.home") + "/bin/java";
+    def classPath = sourceSets.main.runtimeClasspath.collect { it.absolutePath }.join(File.pathSeparator);
+
+    ArrayList params = new ArrayList<String>();
+
+    params.add(javaExec);
+    params.add("-XX:MaxDirectMemorySize=512g");
+
+    if (hdrhistogramFileoutput != null) {
+        params.add("-Dycsb.hdrhistogram.fileoutput=" + hdrhistogramFileoutput);
+    }
+
+    if (hdrhistogramOutputPath != null) {
+        params.add("-Dycsb.hdrhistogram.output.path=" + hdrhistogramOutputPath);
+    }
+
+    if (threads != null) {
+        params.add("-Dycsb.threads=" + threads);
+    }
+
+    if (target != null) {
+        params.add("-Dycsb.target=" + target);
+    }
+
+    if (load != null) {
+        params.add("-Dycsb.load=" + load);
+    }
+
+    if (status != null) {
+        params.add("-Dycsb.status=" + status);
+    }
+
+    if (label != null) {
+        params.add("-Dycsb.label=" + label);
+    }
+
+    if (workload != null) {
+        params.add("-Dycsb.workload=" + workload);
+    }
+
+    if (operationcount != null) {
+        params.add("-Dycsb.operationcount=" + operationcount);
+    }
+
+    if (recordcount != null) {
+        params.add("-Dycsb.recordcount=" + recordcount);
+    }
+
+    if (url != null) {
+        params.add("-Dorientdb.url=" + url);
+    }
+
+    if (user != null) {
+        params.add("-Dorientdb.user=" + user);
+    }
+
+    if (password != null) {
+        params.add("-Dorientdb.password=" + password);
+    }
+
+    if (newdb != null) {
+        params.add("-Dorientdb.newdb=" + newdb);
+    }
+
+    if (settings != null) {
+        params.add("-Dycsb.settings=" + settings);
+    }
+
+    params.add("-classpath");
+    params.add(classPath);
+
+    params.add("com.orientechnologies.ycsb.Client");
+
+    println(params)
+
+    def processBuilder = new ProcessBuilder(params);
+    processBuilder.inheritIO();
+
+    def process = processBuilder.start();
+    process.waitFor()
+}

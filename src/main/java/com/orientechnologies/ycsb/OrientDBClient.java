@@ -1,6 +1,7 @@
 package com.orientechnologies.ycsb;
 
 import com.orientechnologies.orient.core.Orient;
+import com.orientechnologies.orient.core.config.OGlobalConfiguration;
 import com.orientechnologies.orient.core.db.OPartitionedDatabasePool;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.dictionary.ODictionary;
@@ -43,7 +44,7 @@ public class OrientDBClient extends DB {
     // initialize OrientDB driver
     final Properties props = getProperties();
     String url = props.getProperty("orientdb.url",
-        "plocal:." + File.separator + "target" + File.separator + "databases" + File.separator + "ycsb");
+        "plocal:." + File.separator + "build" + File.separator + "databases" + File.separator + "ycsb");
 
     String user = props.getProperty("orientdb.user", "admin");
     String password = props.getProperty("orientdb.password", "admin");
@@ -53,6 +54,8 @@ public class OrientDBClient extends DB {
     try {
       clientCounter++;
       if (!initialized) {
+        OGlobalConfiguration.dumpConfiguration(System.out);
+
         System.out.println("OrientDB loading database url = " + url);
 
         ODatabaseDocumentTx db = new ODatabaseDocumentTx(url);
@@ -249,15 +252,27 @@ public class OrientDBClient extends DB {
       final ODictionary<ORecord> dictionary = db.getMetadata().getIndexManager().getDictionary();
       final OIndexCursor entries = dictionary.getIndex().iterateEntriesMajor(startkey, true, true);
 
+      int currentCount = 0;
       while (entries.hasNext()) {
         final ODocument document = entries.next().getRecord();
 
         final HashMap<String, ByteIterator> map = new HashMap<>();
         result.add(map);
 
-        for (String field : fields) {
-          map.put(field, new StringByteIterator((String) document.field(field)));
+        if (fields != null) {
+          for (String field : fields) {
+            map.put(field, new StringByteIterator((String) document.field(field)));
+          }
+        } else {
+          for (String field : document.fieldNames()) {
+            map.put(field, new StringByteIterator((String) document.field(field)));
+          }
         }
+
+        currentCount++;
+
+        if (currentCount >= recordcount)
+          break;
       }
 
       return Status.OK;
