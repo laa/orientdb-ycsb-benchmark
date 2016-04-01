@@ -104,6 +104,11 @@ task benchmark << {
         params.add("-Dycsb.settings=" + settings);
     }
 
+    params.add("-Dcom.sun.management.jmxremote");
+    params.add("-Dcom.sun.management.jmxremote.port=1617");
+    params.add("-Dcom.sun.management.jmxremote.authenticate=false");
+    params.add("-Dcom.sun.management.jmxremote.ssl=false");
+
     params.add("-classpath");
     params.add(classPath);
 
