@@ -35,13 +35,18 @@ task benchmark << {
     def password = System.getProperty("orientdb.password");
     def newdb = System.getProperty("orientdb.newdb");
     def settings = System.getProperty("ycsb.settings");
+    def jvmAgent = System.getProperty("jvm.agent.path");
 
     def javaExec = System.getProperty("java.home") + "/bin/java";
     def classPath = sourceSets.main.runtimeClasspath.collect { it.absolutePath }.join(File.pathSeparator);
 
     ArrayList params = new ArrayList<String>();
-
     params.add(javaExec);
+
+    if (jvmAgent != null) {
+        params.add("-agentpath:" + jvmAgent);
+    }
+
     params.add("-XX:MaxDirectMemorySize=512g");
 
     if (hdrhistogramFileoutput != null) {
