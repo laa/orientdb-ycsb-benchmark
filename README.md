@@ -19,6 +19,7 @@ provide OrientDB configuration properties for embedded storage.<br>
 `orientdb.user` - OrientDB user name, "admin" by default.<br>
 `orientdb.password` - OrientDB user password, "admin" by default<br>
 `orientdb.newdb` - create new database before running a workload.<br>
+`jvm.agent.path` - path to JVM agent, useful in case of remote profiling<br>
 
 Typcal use case of running of workloads consist of following commands:<br>
 `gradle build` - build project<br>
