@@ -4,11 +4,16 @@ import com.orientechnologies.orient.core.Orient;
 import com.orientechnologies.orient.core.config.OGlobalConfiguration;
 import com.orientechnologies.orient.core.db.OPartitionedDatabasePool;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.dictionary.ODictionary;
 import com.orientechnologies.orient.core.exception.OConcurrentModificationException;
+import com.orientechnologies.orient.core.index.OIndex;
 import com.orientechnologies.orient.core.index.OIndexCursor;
+import com.orientechnologies.orient.core.metadata.schema.OClass;
+import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.ORecord;
 import com.orientechnologies.orient.core.record.impl.ODocument;
+import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
 import com.yahoo.ycsb.*;
 
 import java.io.File;
@@ -29,7 +34,9 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author Luca Garulli
  */
 public class OrientDBClient extends DB {
-  private static final String CLASS = "usertable";
+  private static final String CLASS     = "usertable";
+  private static final String INDEX     = "AutoShardedIndex";
+  private static final String KEY_FIELD = "key";
 
   private static final Lock    initLock  = new ReentrantLock();
   private static       boolean dbCreated = false;
@@ -77,7 +84,9 @@ public class OrientDBClient extends DB {
         }
 
         if (!db.getMetadata().getSchema().existsClass(CLASS)) {
-          db.getMetadata().getSchema().createClass(CLASS);
+          final OClass clazz = db.getMetadata().getSchema().createClass(CLASS);
+          clazz.createProperty(KEY_FIELD, OType.STRING);
+          clazz.createIndex(INDEX, OClass.INDEX_TYPE.NOTUNIQUE.toString(), null, null, "AUTOSHARDING", new String[] { KEY_FIELD });
         }
 
         db.close();
@@ -128,13 +137,11 @@ public class OrientDBClient extends DB {
     try (ODatabaseDocumentTx db = databasePool.acquire()) {
       final ODocument document = new ODocument(CLASS);
 
+      document.field(KEY_FIELD, key);
       for (Map.Entry<String, String> entry : StringByteIterator.getStringMap(values).entrySet()) {
         document.field(entry.getKey(), entry.getValue());
       }
-
       document.save();
-      final ODictionary<ORecord> dictionary = db.getMetadata().getIndexManager().getDictionary();
-      dictionary.put(key, document);
 
       return Status.OK;
     } catch (Exception e) {
@@ -155,8 +162,12 @@ public class OrientDBClient extends DB {
   public Status delete(String table, String key) {
     while (true) {
       try (ODatabaseDocumentTx db = databasePool.acquire()) {
-        final ODictionary<ORecord> dictionary = db.getMetadata().getIndexManager().getDictionary();
-        dictionary.remove(key);
+        List<ODocument> result = db.query(new OSQLSynchQuery<>("select from " + CLASS + " where " + KEY_FIELD + " = '" + key + "'"));
+        if (result.isEmpty())
+          return Status.ERROR;
+
+        ODocument document = result.get(0);
+        document.delete();
         return Status.OK;
       } catch (OConcurrentModificationException cme) {
         continue;
@@ -179,8 +190,11 @@ public class OrientDBClient extends DB {
   @Override
   public Status read(String table, String key, Set<String> fields, HashMap<String, ByteIterator> result) {
     try (ODatabaseDocumentTx db = databasePool.acquire()) {
-      final ODictionary<ORecord> dictionary = db.getMetadata().getIndexManager().getDictionary();
-      final ODocument document = dictionary.get(key);
+      final List<ODocument> records = db.query(new OSQLSynchQuery<>("select from " + CLASS + " where " + KEY_FIELD + " = '" + key + "'"));
+      if (records.isEmpty())
+        return Status.ERROR;
+
+      final ODocument document = records.get(0);
       if (document != null) {
         if (fields != null) {
           for (String field : fields) {
@@ -214,8 +228,12 @@ public class OrientDBClient extends DB {
   public Status update(String table, String key, HashMap<String, ByteIterator> values) {
     while (true) {
       try (ODatabaseDocumentTx db = databasePool.acquire()) {
-        final ODictionary<ORecord> dictionary = db.getMetadata().getIndexManager().getDictionary();
-        final ODocument document = dictionary.get(key);
+        final List<ODocument> records = db
+            .query(new OSQLSynchQuery<>("select from " + CLASS + " where " + KEY_FIELD + " = '" + key + "'"));
+        if (records.isEmpty())
+          return Status.ERROR;
+
+        final ODocument document = records.get(0);
         if (document != null) {
           for (Map.Entry<String, String> entry : StringByteIterator.getStringMap(values).entrySet()) {
             document.field(entry.getKey(), entry.getValue());
@@ -249,23 +267,21 @@ public class OrientDBClient extends DB {
   public Status scan(String table, String startkey, int recordcount, Set<String> fields,
       Vector<HashMap<String, ByteIterator>> result) {
     try (ODatabaseDocumentTx db = databasePool.acquire()) {
-      final ODictionary<ORecord> dictionary = db.getMetadata().getIndexManager().getDictionary();
-      final OIndexCursor entries = dictionary.getIndex().iterateEntriesMajor(startkey, true, true);
+      final List<ODocument> records = db.query(
+          new OSQLSynchQuery<>("select from " + CLASS + " where " + KEY_FIELD + " >= '" + startkey + "' limit " + recordcount));
 
       int currentCount = 0;
-      while (entries.hasNext()) {
-        final ODocument document = entries.next().getRecord();
-
+      for (final ODocument document : records) {
         final HashMap<String, ByteIterator> map = new HashMap<>();
         result.add(map);
 
         if (fields != null) {
           for (String field : fields) {
-            map.put(field, new StringByteIterator((String) document.field(field)));
+            map.put(field, new StringByteIterator(document.field(field)));
           }
         } else {
           for (String field : document.fieldNames()) {
-            map.put(field, new StringByteIterator((String) document.field(field)));
+            map.put(field, new StringByteIterator(document.field(field)));
           }
         }
 
