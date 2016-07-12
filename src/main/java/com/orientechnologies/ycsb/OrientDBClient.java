@@ -4,14 +4,9 @@ import com.orientechnologies.orient.core.Orient;
 import com.orientechnologies.orient.core.config.OGlobalConfiguration;
 import com.orientechnologies.orient.core.db.OPartitionedDatabasePool;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.dictionary.ODictionary;
 import com.orientechnologies.orient.core.exception.OConcurrentModificationException;
-import com.orientechnologies.orient.core.index.OIndex;
 import com.orientechnologies.orient.core.index.OIndexCursor;
-import com.orientechnologies.orient.core.index.OSimpleKeyIndexDefinition;
-import com.orientechnologies.orient.core.metadata.schema.OClass;
-import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.ORecord;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.yahoo.ycsb.*;
@@ -35,7 +30,6 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 public class OrientDBClient extends DB {
   private static final String CLASS = "usertable";
-  private static final String INDEX = "AutoShardingIndex";
 
   private static final Lock    initLock  = new ReentrantLock();
   private static       boolean dbCreated = false;
@@ -84,9 +78,6 @@ public class OrientDBClient extends DB {
 
         if (!db.getMetadata().getSchema().existsClass(CLASS)) {
           db.getMetadata().getSchema().createClass(CLASS);
-          db.getMetadata().getIndexManager()
-              .createIndex(INDEX, OClass.INDEX_TYPE.NOTUNIQUE.toString(), new OSimpleKeyIndexDefinition(0, OType.STRING),
-                  new int[] {}, null, null, "AUTOSHARDING");
         }
 
         db.close();
@@ -142,8 +133,8 @@ public class OrientDBClient extends DB {
       }
 
       document.save();
-      final OIndex<?> index = db.getMetadata().getIndexManager().getIndex(INDEX);
-      index.put(key, document);
+      final ODictionary<ORecord> dictionary = db.getMetadata().getIndexManager().getDictionary();
+      dictionary.put(key, document);
 
       return Status.OK;
     } catch (Exception e) {
@@ -164,8 +155,8 @@ public class OrientDBClient extends DB {
   public Status delete(String table, String key) {
     while (true) {
       try (ODatabaseDocumentTx db = databasePool.acquire()) {
-        final OIndex<?> index = db.getMetadata().getIndexManager().getIndex(INDEX);
-        index.remove(key);
+        final ODictionary<ORecord> dictionary = db.getMetadata().getIndexManager().getDictionary();
+        dictionary.remove(key);
         return Status.OK;
       } catch (OConcurrentModificationException cme) {
         continue;
@@ -188,8 +179,8 @@ public class OrientDBClient extends DB {
   @Override
   public Status read(String table, String key, Set<String> fields, HashMap<String, ByteIterator> result) {
     try (ODatabaseDocumentTx db = databasePool.acquire()) {
-      final OIndex<?> index = db.getMetadata().getIndexManager().getIndex(INDEX);
-      final ODocument document = ((OIdentifiable) index.get(key)).getRecord();
+      final ODictionary<ORecord> dictionary = db.getMetadata().getIndexManager().getDictionary();
+      final ODocument document = dictionary.get(key);
       if (document != null) {
         if (fields != null) {
           for (String field : fields) {
@@ -223,8 +214,8 @@ public class OrientDBClient extends DB {
   public Status update(String table, String key, HashMap<String, ByteIterator> values) {
     while (true) {
       try (ODatabaseDocumentTx db = databasePool.acquire()) {
-        final OIndex<?> index = db.getMetadata().getIndexManager().getIndex(INDEX);
-        final ODocument document = ((OIdentifiable) index.get(key)).getRecord();
+        final ODictionary<ORecord> dictionary = db.getMetadata().getIndexManager().getDictionary();
+        final ODocument document = dictionary.get(key);
         if (document != null) {
           for (Map.Entry<String, String> entry : StringByteIterator.getStringMap(values).entrySet()) {
             document.field(entry.getKey(), entry.getValue());
@@ -258,8 +249,8 @@ public class OrientDBClient extends DB {
   public Status scan(String table, String startkey, int recordcount, Set<String> fields,
       Vector<HashMap<String, ByteIterator>> result) {
     try (ODatabaseDocumentTx db = databasePool.acquire()) {
-      final OIndex<?> index = db.getMetadata().getIndexManager().getIndex(INDEX);
-      final OIndexCursor entries = index.iterateEntriesMajor(startkey, true, true);
+      final ODictionary<ORecord> dictionary = db.getMetadata().getIndexManager().getDictionary();
+      final OIndexCursor entries = dictionary.getIndex().iterateEntriesMajor(startkey, true, true);
 
       int currentCount = 0;
       while (entries.hasNext()) {
