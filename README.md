@@ -1,5 +1,5 @@
 # orientdb-ycsb-benchmark
-YCSB benchmark for OrientDB project which was refactored to run inside of maven. Based on 0.7 version of YCSB.
+YCSB benchmark for OrientDB project which was refactored to run inside of gradle. Based on 0.7 version of YCSB.
 
 Following YCSB properties are supported (should be provided as maven system properties):
 
