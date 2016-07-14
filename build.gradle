@@ -36,12 +36,17 @@ task benchmark << {
     def newdb = System.getProperty("orientdb.newdb");
     def settings = System.getProperty("ycsb.settings");
     def jvmAgent = System.getProperty("jvm.agent.path");
+    def debug = System.getProperty("ycsb.debug");
 
     def javaExec = System.getProperty("java.home") + "/bin/java";
     def classPath = sourceSets.main.runtimeClasspath.collect { it.absolutePath }.join(File.pathSeparator);
 
     ArrayList params = new ArrayList<String>();
     params.add(javaExec);
+
+    if (debug != null) {
+        params.add("-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005");
+    }
 
     if (jvmAgent != null) {
         params.add("-agentpath:" + jvmAgent);
