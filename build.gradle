@@ -45,7 +45,7 @@ task benchmark << {
     params.add(javaExec);
 
     if (debug != null) {
-        params.add("-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005");
+        params.add("-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5005");
     }
 
     if (jvmAgent != null) {
