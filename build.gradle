@@ -6,7 +6,7 @@ repositories {
 }
 
 ext {
-    orientdbVersion = "2.2.5-SNAPSHOT"
+    orientdbVersion = "2.2.7-SNAPSHOT"
     jacksonApiVersion = "1.9.4"
 }
 
