@@ -127,8 +127,47 @@ task benchmark << {
     println(params)
 
     def processBuilder = new ProcessBuilder(params);
-    processBuilder.inheritIO();
+    processBuilder.redirectInput();
 
     def process = processBuilder.start();
+
+    def Thread ist = new Thread() {
+        @Override
+        void run() {
+            InputStream is = process.getInputStream();
+            InputStreamReader isr = new InputStreamReader(is);
+            BufferedReader br = new BufferedReader(isr);
+
+
+            String line;
+
+            while ((line = br.readLine()) != null) {
+                System.out.println(line);
+            }
+        }
+    }
+
+    ist.setDaemon(true);
+    ist.start();
+
+    def Thread eist = new Thread() {
+        @Override
+        void run() {
+            InputStream is = process.getErrorStream();
+            InputStreamReader isr = new InputStreamReader(is);
+            BufferedReader br = new BufferedReader(isr);
+
+
+            String line;
+
+            while ((line = br.readLine()) != null) {
+                System.out.println(line);
+            }
+        }
+    }
+
+    eist.setDaemon(true);
+    eist.start();
+
     process.waitFor()
 }
