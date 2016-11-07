@@ -18,8 +18,8 @@ package com.yahoo.ycsb.workloads;
 
 import java.util.Properties;
 
+import com.orientechnologies.ycsb.Client;
 import com.yahoo.ycsb.WorkloadException;
-import com.yahoo.ycsb.Client;
 import com.yahoo.ycsb.generator.IntegerGenerator;
 
 /**

@@ -29,7 +29,7 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.Vector;
 
-import com.yahoo.ycsb.Client;
+import com.orientechnologies.ycsb.Client;
 import com.yahoo.ycsb.workloads.*;
 
 /**

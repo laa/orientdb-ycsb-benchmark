@@ -19,6 +19,7 @@ package com.yahoo.ycsb.workloads;
 
 import java.util.Properties;
 
+import com.orientechnologies.ycsb.Client;
 import com.yahoo.ycsb.*;
 import com.yahoo.ycsb.generator.AcknowledgedCounterGenerator;
 import com.yahoo.ycsb.generator.CounterGenerator;

@@ -16,6 +16,7 @@ dependencies {
     compile group: 'org.codehaus.jackson', name: 'jackson-mapper-asl', version: jacksonApiVersion
     compile group: 'org.codehaus.jackson', name: 'jackson-core-asl', version: jacksonApiVersion
     compile group: 'org.hdrhistogram', name: 'HdrHistogram', version: '2.1.4'
+    compile group: 'org.apache.commons', name: 'commons-csv', version: '1.4'
     testCompile group: 'org.testng', name: 'testng', version: '6.1.1'
 }
 
@@ -37,6 +38,8 @@ task benchmark << {
     def settings = System.getProperty("ycsb.settings");
     def jvmAgent = System.getProperty("jvm.agent.path");
     def debug = System.getProperty("ycsb.debug");
+    def csvStatusFile = System.getProperty("csvstatusfile");
+    def csvMeasurements = System.getProperty("csvmeasurements");
 
     def javaExec = System.getProperty("java.home") + "/bin/java";
     def classPath = sourceSets.main.runtimeClasspath.collect { it.absolutePath }.join(File.pathSeparator);
@@ -112,6 +115,14 @@ task benchmark << {
 
     if (settings != null) {
         params.add("-Dycsb.settings=" + settings);
+    }
+
+    if (csvStatusFile != null) {
+        params.add("-Dcsvstatusfile=" + csvStatusFile);
+    }
+
+    if (csvMeasurements != null) {
+        params.add("-Dcsvmeasurements=" + csvMeasurements);
     }
 
     params.add("-Dcom.sun.management.jmxremote");

@@ -22,7 +22,7 @@ import java.text.DecimalFormat;
 import java.util.Properties;
 
 import com.yahoo.ycsb.measurements.exporter.MeasurementsExporter;
-
+import org.apache.commons.csv.CSVPrinter;
 
 /**
  * Take measurements and maintain a histogram of a given metric, such as READ LATENCY.
@@ -160,15 +160,22 @@ public class OneMeasurementHistogram extends OneMeasurement
   }
 
   @Override
-  public String getSummary() {
+  public String getSummary(CSVPrinter csvPrinter) throws IOException {
     if (windowoperations==0)
     {
+      if (csvPrinter != null)
+        csvPrinter.print("");
+
       return "";
     }
     DecimalFormat d = new DecimalFormat("#.##");
     double report=((double)windowtotallatency)/((double)windowoperations);
     windowtotallatency=0;
     windowoperations=0;
+
+    if (csvPrinter != null)
+      csvPrinter.print(report);
+
     return "["+getName()+" AverageLatency(us)="+d.format(report)+"]";
   }
 }

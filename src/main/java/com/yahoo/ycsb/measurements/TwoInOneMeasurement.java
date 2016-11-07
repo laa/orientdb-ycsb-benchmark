@@ -21,6 +21,7 @@ import com.yahoo.ycsb.Status;
 import com.yahoo.ycsb.measurements.exporter.MeasurementsExporter;
 
 import org.HdrHistogram.Recorder;
+import org.apache.commons.csv.CSVPrinter;
 
 import java.io.IOException;
 
@@ -78,8 +79,7 @@ public class TwoInOneMeasurement extends OneMeasurement {
    * @see com.yahoo.ycsb.measurements.OneMeasurement#getSummary()
    */
   @Override
-  public String getSummary() {
-    return thing1.getSummary() + "\n" + thing2.getSummary();
+  public String getSummary(CSVPrinter csvPrinter) throws IOException {
+    return thing1.getSummary(csvPrinter) + "\n" + thing2.getSummary(csvPrinter);
   }
-
 }

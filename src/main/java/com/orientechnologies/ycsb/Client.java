@@ -5,6 +5,8 @@ import com.yahoo.ycsb.*;
 import com.yahoo.ycsb.measurements.Measurements;
 import com.yahoo.ycsb.measurements.exporter.MeasurementsExporter;
 import com.yahoo.ycsb.measurements.exporter.TextMeasurementsExporter;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVPrinter;
 
 import java.io.*;
 import java.text.DecimalFormat;
@@ -39,6 +41,13 @@ class StatusThread extends Thread {
   private long _sleeptimeNs;
 
   /**
+   * Output stream is used to write current throughput in CSV format
+   */
+  private final OutputStream csvStatusOutputStream;
+
+  private final List<String> csvMeasurements;
+
+  /**
    * Creates a new StatusThread.
    *
    * @param completeLatch         The latch that each client thread will {@link CountDownLatch#countDown()} as they complete.
@@ -46,14 +55,18 @@ class StatusThread extends Thread {
    * @param label                 The label for the status.
    * @param standardstatus        If true the status is printed to stdout in addition to stderr.
    * @param statusIntervalSeconds The number of seconds between status updates.
+   * @param csvStatusOutputStream Output stream is used to write current throughput in CSV format
+   * @param csvMeasurements       List of measurements values of which will be stored in CSV file along with throughput
    */
   public StatusThread(CountDownLatch completeLatch, List<ClientThread> clients, String label, boolean standardstatus,
-      int statusIntervalSeconds) {
+      int statusIntervalSeconds, OutputStream csvStatusOutputStream, List<String> csvMeasurements) {
     _completeLatch = completeLatch;
     _clients = clients;
     _label = label;
     _standardstatus = standardstatus;
     _sleeptimeNs = TimeUnit.SECONDS.toNanos(statusIntervalSeconds);
+    this.csvStatusOutputStream = csvStatusOutputStream;
+    this.csvMeasurements = csvMeasurements;
   }
 
   /**
@@ -69,19 +82,33 @@ class StatusThread extends Thread {
 
     boolean alldone;
 
-    do {
-      long nowMs = System.currentTimeMillis();
+    try {
+      CSVPrinter csvPrinter = null;
 
-      lastTotalOps = computeStats(startTimeMs, startIntervalMs, nowMs, lastTotalOps);
+      if (csvStatusOutputStream != null) {
+        OutputStreamWriter csvWriter = new OutputStreamWriter(csvStatusOutputStream);
+        csvPrinter = new CSVPrinter(csvWriter, CSVFormat.DEFAULT);
+      }
 
-      alldone = waitForClientsUntil(deadline);
+      do {
+        long nowMs = System.currentTimeMillis();
 
-      startIntervalMs = nowMs;
-      deadline += _sleeptimeNs;
-    } while (!alldone);
+        lastTotalOps = computeStats(startTimeMs, startIntervalMs, nowMs, lastTotalOps, csvPrinter);
 
-    // Print the final stats.
-    computeStats(startTimeMs, startIntervalMs, System.currentTimeMillis(), lastTotalOps);
+        alldone = waitForClientsUntil(deadline);
+
+        startIntervalMs = nowMs;
+        deadline += _sleeptimeNs;
+      } while (!alldone);
+
+      // Print the final stats.
+      computeStats(startTimeMs, startIntervalMs, System.currentTimeMillis(), lastTotalOps, csvPrinter);
+
+      if (csvPrinter != null)
+        csvPrinter.close();
+    } catch (IOException ioe) {
+      throw new IllegalStateException(ioe);
+    }
   }
 
   /**
@@ -91,9 +118,11 @@ class StatusThread extends Thread {
    * @param startIntervalMs The start time of this interval.
    * @param endIntervalMs   The end time (now) for the interval.
    * @param lastTotalOps    The last total operations count.
+   * @param csvPrinter      Printer is used to write current throughput
    * @return The current operation count.
    */
-  private long computeStats(final long startTimeMs, long startIntervalMs, long endIntervalMs, long lastTotalOps) {
+  private long computeStats(final long startTimeMs, long startIntervalMs, long endIntervalMs, long lastTotalOps,
+      CSVPrinter csvPrinter) throws IOException {
     SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss:SSS");
 
     long totalops = 0;
@@ -123,13 +152,23 @@ class StatusThread extends Thread {
       msg.append("est completion in ").append(RemainingFormatter.format(estremaining));
     }
 
-    msg.append(Measurements.getMeasurements().getSummary());
+    if (csvPrinter != null) {
+      csvPrinter.print(interval / 1000);
+      csvPrinter.print(curthroughput);
+    }
+
+    msg.append(Measurements.getMeasurements().getSummary(csvPrinter, csvMeasurements));
+
+    if (csvPrinter != null) {
+      csvPrinter.println();
+    }
 
     System.err.println(msg);
 
     if (_standardstatus) {
       System.out.println(msg);
     }
+
     return totalops;
   }
 
@@ -417,6 +456,16 @@ public class Client {
    */
   public static final String DO_TRANSACTIONS_PROPERTY = "dotransactions";
 
+  /**
+   * File which is used to store intermediate state of benchmark (current throughput) in CSV format
+   */
+  public static final String CSV_STATUS_FILE = "csvstatusfile";
+
+  /**
+   * List of measurements values of which will be stored in CSV file along with throughput
+   */
+  public static final String CSV_MEASUREMENTS = "csvmeasurements";
+
   public static boolean checkRequiredProperties(Properties props) {
     if (props.getProperty(WORKLOAD_PROPERTY) == null) {
       System.out.println("Missing property: " + WORKLOAD_PROPERTY);
@@ -674,6 +723,24 @@ public class Client {
       clients.add(t);
     }
 
+    String csvStatusFile = getSystemProperty(CSV_STATUS_FILE, null);
+    String csvMeasurementsLine = getSystemProperty(CSV_MEASUREMENTS, null);
+
+    List<String> csvMeasurements = new ArrayList<>();
+
+    if (csvMeasurementsLine != null) {
+      String[] csvMeasurementsArray = csvMeasurementsLine.split(",");
+
+      for (String csvMeasurement : csvMeasurementsArray) {
+        csvMeasurements.add(csvMeasurement.trim().toUpperCase());
+      }
+    }
+
+    FileOutputStream csvStateFileOutputStream = null;
+    if (csvStatusFile != null) {
+      csvStateFileOutputStream = new FileOutputStream(csvStatusFile);
+    }
+
     StatusThread statusthread = null;
 
     if (status) {
@@ -682,7 +749,8 @@ public class Client {
         standardstatus = true;
       }
       int statusIntervalSeconds = Integer.parseInt(props.getProperty("status.interval", "10"));
-      statusthread = new StatusThread(completeLatch, clients, label, standardstatus, statusIntervalSeconds);
+      statusthread = new StatusThread(completeLatch, clients, label, standardstatus, statusIntervalSeconds,
+          csvStateFileOutputStream, csvMeasurements);
       statusthread.start();
     }
 
@@ -723,6 +791,10 @@ public class Client {
         statusthread.join();
       } catch (InterruptedException e) {
       }
+    }
+
+    if (csvStateFileOutputStream != null) {
+      csvStateFileOutputStream.close();
     }
 
     try {

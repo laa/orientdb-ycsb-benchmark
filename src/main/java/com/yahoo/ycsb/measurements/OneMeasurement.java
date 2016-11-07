@@ -19,6 +19,7 @@ package com.yahoo.ycsb.measurements;
 
 import com.yahoo.ycsb.Status;
 import com.yahoo.ycsb.measurements.exporter.MeasurementsExporter;
+import org.apache.commons.csv.CSVPrinter;
 
 import java.io.IOException;
 import java.util.Map;
@@ -47,7 +48,7 @@ public abstract class OneMeasurement {
 
   public abstract void measure(long latency);
 
-  public abstract String getSummary();
+  public abstract String getSummary(CSVPrinter csvPrinter) throws IOException;
 
   /**
    * No need for synchronization, using CHM to deal with that

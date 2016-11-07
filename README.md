@@ -20,6 +20,11 @@ provide OrientDB configuration properties for embedded storage.<br>
 `orientdb.password` - OrientDB user password, "admin" by default<br>
 `orientdb.newdb` - create new database before running a workload.<br>
 `jvm.agent.path` - path to JVM agent, useful in case of remote profiling<br>
+`csvstatusfile` - Name of CSV file which will be used to store current status of benchmark, if `csvmeasurements` parameter is not set
+first column of CSV file will contain time passed since start of test and second column current throughput<br>
+`csvmeasurements` - List of names of measurements, separated by coma, values of which will be stored in CSV file along with benchmark
+status. Values of measurements will be contained in CSV file according to order they were listed in value of property<br>
+
 
 Typcal use case of running of workloads consist of following commands:<br>
 `gradle build` - build project<br>
