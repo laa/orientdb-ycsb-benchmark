@@ -579,6 +579,11 @@ public class Client {
       System.exit(1);
     }
 
+    String mesInterval = getSystemProperty("ycsb.measurement.interval", settings);
+    if (mesInterval != null) {
+      props.setProperty(Measurements.MEASUREMENT_INTERVAL, mesInterval);
+    }
+
     final InputStream stream = Client.class.getResourceAsStream("/workloads/" + sworkload);
     if (stream == null) {
       System.out.println("Workload with name " + sworkload + " does not exist");

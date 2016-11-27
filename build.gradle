@@ -40,6 +40,7 @@ task benchmark << {
     def debug = System.getProperty("ycsb.debug");
     def csvStatusFile = System.getProperty("csvstatusfile");
     def csvMeasurements = System.getProperty("csvmeasurements");
+    def measurementInterval = System.getProperty("ycsb.measurement.interval");
 
     def javaExec = System.getProperty("java.home") + "/bin/java";
     def classPath = sourceSets.main.runtimeClasspath.collect { it.absolutePath }.join(File.pathSeparator);
@@ -123,6 +124,10 @@ task benchmark << {
 
     if (csvMeasurements != null) {
         params.add("-Dcsvmeasurements=" + csvMeasurements);
+    }
+
+    if (measurementInterval != null) {
+        params.add("-Dycsb.measurement.interval=" + measurementInterval);
     }
 
     params.add("-Dcom.sun.management.jmxremote");
