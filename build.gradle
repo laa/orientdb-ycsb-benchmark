@@ -42,20 +42,13 @@ task benchmark << {
     def csvStatusFile = System.getProperty("csvstatusfile");
     def csvMeasurements = System.getProperty("csvmeasurements");
     def measurementInterval = System.getProperty("ycsb.measurement.interval");
+    def loggc = System.getProperty("ycsb.loggc");
 
     def javaExec = System.getProperty("java.home") + "/bin/java";
     def classPath = sourceSets.main.runtimeClasspath.collect { it.absolutePath }.join(File.pathSeparator);
 
     ArrayList params = new ArrayList<String>();
     params.add(javaExec);
-
-    if (path != null) {
-        params.add("-Dorientdb.path=" + path);
-    }
-
-    if (dbName != null) {
-        params.add("-Dorientdb.database=" + dbName);
-    }
 
     if (debug != null) {
         params.add("-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5005");
@@ -66,6 +59,20 @@ task benchmark << {
     }
 
     params.add("-XX:MaxDirectMemorySize=512g");
+
+    if (loggc != null) {
+        params.add("-XX:+PrintGCDetails");
+        params.add("-XX:+PrintGCDateStamps");
+        params.add("-Xloggc:" + loggc);
+    }
+
+    if (path != null) {
+        params.add("-Dorientdb.path=" + path);
+    }
+
+    if (dbName != null) {
+        params.add("-Dorientdb.database=" + dbName);
+    }
 
     if (hdrhistogramFileoutput != null) {
         params.add("-Dycsb.hdrhistogram.fileoutput=" + hdrhistogramFileoutput);
