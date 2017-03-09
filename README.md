@@ -1,5 +1,6 @@
 # orientdb-ycsb-benchmark
 YCSB benchmark for OrientDB project which was refactored to run inside of gradle. Based on 0.7 version of YCSB.
+This benchmark is used only to run embedded database not remote one
 
 Following YCSB properties are supported (should be provided as maven system properties):
 
@@ -15,7 +16,8 @@ Following YCSB properties are supported (should be provided as maven system prop
 `ycsb.settings` - path to property file which may contain all settings listed here and OrientDB configuration properties. 
 Empty by default. Any setting provided as system property will override one in property file. Property file is only way to
 provide OrientDB configuration properties for embedded storage.<br>
-`orientdb.url` - url to OrientDB instance, "./build/databases/ycsb" by default.<br>
+`orientdb.path` - path to directory where all OrientDB databases are placed, "./build/databases" by default.<br>
+`orientdb.database`- name of database which will be used in benchmark "ycsb" by default<br>
 `orientdb.user` - OrientDB user name, "admin" by default.<br>
 `orientdb.password` - OrientDB user password, "admin" by default<br>
 `orientdb.newdb` - create new database before running a workload.<br>
