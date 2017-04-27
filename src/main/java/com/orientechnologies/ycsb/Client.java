@@ -5,6 +5,7 @@ import com.yahoo.ycsb.*;
 import com.yahoo.ycsb.measurements.Measurements;
 import com.yahoo.ycsb.measurements.exporter.MeasurementsExporter;
 import com.yahoo.ycsb.measurements.exporter.TextMeasurementsExporter;
+import com.yahoo.ycsb.workloads.CoreWorkload;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 
@@ -119,6 +120,7 @@ class StatusThread extends Thread {
    * @param endIntervalMs   The end time (now) for the interval.
    * @param lastTotalOps    The last total operations count.
    * @param csvPrinter      Printer is used to write current throughput
+   *
    * @return The current operation count.
    */
   private long computeStats(final long startTimeMs, long startIntervalMs, long endIntervalMs, long lastTotalOps,
@@ -176,6 +178,7 @@ class StatusThread extends Thread {
    * Waits for all of the client to finish or the deadline to expire.
    *
    * @param deadline The current deadline.
+   *
    * @return True if all of the clients completed.
    */
   private boolean waitForClientsUntil(long deadline) {
@@ -582,6 +585,11 @@ public class Client {
     String mesInterval = getSystemProperty("ycsb.measurement.interval", settings);
     if (mesInterval != null) {
       props.setProperty(Measurements.MEASUREMENT_INTERVAL, mesInterval);
+    }
+
+    String fieldLengthDistribution = getSystemProperty("ycsb.fieldlengthdistribution", settings);
+    if (fieldLengthDistribution != null) {
+      props.setProperty(CoreWorkload.FIELD_LENGTH_DISTRIBUTION_PROPERTY, fieldLengthDistribution);
     }
 
     final InputStream stream = Client.class.getResourceAsStream("/workloads/" + sworkload);
