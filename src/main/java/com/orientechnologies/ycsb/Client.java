@@ -5,6 +5,7 @@ import com.yahoo.ycsb.*;
 import com.yahoo.ycsb.measurements.Measurements;
 import com.yahoo.ycsb.measurements.exporter.MeasurementsExporter;
 import com.yahoo.ycsb.measurements.exporter.TextMeasurementsExporter;
+import com.yahoo.ycsb.workloads.CoreWorkload;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 
@@ -582,6 +583,11 @@ public class Client {
     String mesInterval = getSystemProperty("ycsb.measurement.interval", settings);
     if (mesInterval != null) {
       props.setProperty(Measurements.MEASUREMENT_INTERVAL, mesInterval);
+    }
+
+    String fieldLengthDistribution = getSystemProperty("ycsb.fieldlengthdistribution", settings);
+    if (fieldLengthDistribution != null) {
+      props.setProperty(CoreWorkload.FIELD_LENGTH_DISTRIBUTION_PROPERTY, fieldLengthDistribution);
     }
 
     final InputStream stream = Client.class.getResourceAsStream("/workloads/" + sworkload);
