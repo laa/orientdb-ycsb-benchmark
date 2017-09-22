@@ -44,6 +44,7 @@ task benchmark << {
     def measurementInterval = System.getProperty("ycsb.measurement.interval");
     def loggc = System.getProperty("ycsb.loggc");
     def fieldlengthdistribution = System.getProperty("ycsb.fieldlengthdistribution");
+    def requestdistribution = System.getProperty("ycsb.requestdistribution");
 
     def javaExec = System.getProperty("java.home") + "/bin/java";
     def classPath = sourceSets.main.runtimeClasspath.collect { it.absolutePath }.join(File.pathSeparator);
@@ -145,6 +146,10 @@ task benchmark << {
 
     if (fieldlengthdistribution != null) {
         params.add("-Dycsb.fieldlengthdistribution=" + fieldlengthdistribution);
+    }
+
+    if (requestdistribution != null) {
+        params.add("-Dycsb.requestdistribution=" + requestdistribution);
     }
 
     params.add("-Dcom.sun.management.jmxremote");

@@ -28,7 +28,8 @@ first column of CSV file will contain time passed since start of test and second
 status. Values of measurements will be contained in CSV file according to order they were listed in value of property<br>
 `ycsb.loggc` - Path to the GC log file , empty be default<br>
 `ycsb.fieldlengthdistribution` - The name of the property for the field length distribution. Options are "uniform", "zipfian"
-(favoring short records), "constant".
+(favoring short records), "constant".<br>
+`ycsb.requestdistribution` - what distribution should be used to select the records to operate on - uniform, zipfian.
 
 
 Typcal use case of running of workloads consist of following commands:<br>

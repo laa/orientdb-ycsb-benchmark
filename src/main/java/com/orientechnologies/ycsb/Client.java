@@ -592,6 +592,11 @@ public class Client {
       props.setProperty(CoreWorkload.FIELD_LENGTH_DISTRIBUTION_PROPERTY, fieldLengthDistribution);
     }
 
+    String requestDistribution = getSystemProperty("ycsb.fieldlengthdistribution", settings);
+    if (requestDistribution != null) {
+      props.setProperty(CoreWorkload.REQUEST_DISTRIBUTION_PROPERTY, requestDistribution);
+    }
+
     final InputStream stream = Client.class.getResourceAsStream("/workloads/" + sworkload);
     if (stream == null) {
       System.out.println("Workload with name " + sworkload + " does not exist");
