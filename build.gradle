@@ -13,6 +13,7 @@ ext {
 
 dependencies {
     compile group: 'com.orientechnologies', name: 'orientdb-core', version: orientdbVersion
+    compile group: 'com.orientechnologies', name: 'lsmtrie', version: '1.0-SNAPSHOT'
     compile group: 'org.codehaus.jackson', name: 'jackson-mapper-asl', version: jacksonApiVersion
     compile group: 'org.codehaus.jackson', name: 'jackson-core-asl', version: jacksonApiVersion
     compile group: 'org.hdrhistogram', name: 'HdrHistogram', version: '2.1.4'

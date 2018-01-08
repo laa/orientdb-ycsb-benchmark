@@ -1,10 +1,9 @@
 package com.orientechnologies.ycsb;
 
-import com.orientechnologies.orient.core.Orient;
+import com.orientechnologies.lsmtrie.OLSMTrie;
 import com.orientechnologies.orient.core.config.OGlobalConfiguration;
 import com.orientechnologies.orient.core.db.*;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.dictionary.ODictionary;
 import com.orientechnologies.orient.core.exception.OConcurrentModificationException;
 import com.orientechnologies.orient.core.index.OIndexCursor;
@@ -13,15 +12,15 @@ import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.yahoo.ycsb.*;
 
 import java.io.File;
+import java.nio.charset.Charset;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * OrientDB client for YCSB framework.
- * <p>
  * Properties to set:
- * <p>
  * orientdb.path=path to file of local database<br>
  * orientdb.database=ycsb <br>
  * orientdb.user=admin <br>
@@ -40,6 +39,7 @@ public class OrientDBClient extends DB {
 
   private static boolean initialized   = false;
   private static int     clientCounter = 0;
+  private static volatile OLSMTrie lsmTrie;
 
   /**
    * Initialize any state for this DB. Called once per DB instance; there is one DB instance per client thread.
@@ -48,8 +48,7 @@ public class OrientDBClient extends DB {
     // initialize OrientDB driver
     final Properties props = getProperties();
 
-    String path = "embedded:" + props.getProperty("orientdb.path", "." + File.separator
-        + "build" + File.separator + "databases");
+    String path = "embedded:" + props.getProperty("orientdb.path", "." + File.separator + "build" + File.separator + "databases");
     String dbName = props.getProperty("orientdb.database", "ycsb");
 
     String user = props.getProperty("orientdb.user", "admin");
@@ -88,6 +87,12 @@ public class OrientDBClient extends DB {
           databasePool = new ODatabasePool(orientDB, dbName, user, password);
         }
 
+        String lsmTriePath = props.getProperty("orientdb.path",
+            "." + File.separator + "build" + File.separator + "databases" + File.separator + "lsmtrie");
+
+        lsmTrie = new OLSMTrie("ycsb", Paths.get(lsmTriePath));
+        lsmTrie.load();
+
         initialized = true;
       }
     } catch (Exception e) {
@@ -108,6 +113,7 @@ public class OrientDBClient extends DB {
         databasePool.close();
 
         orientDB.close();
+        lsmTrie.close();
       }
     } finally {
       initLock.unlock();
@@ -135,9 +141,9 @@ public class OrientDBClient extends DB {
         document.field(entry.getKey(), entry.getValue());
       }
 
-      document.save();
-      final ODictionary<ORecord> dictionary = db.getMetadata().getIndexManager().getDictionary();
-      dictionary.put(key, document);
+      final byte[] content = document.toStream();
+      final byte[] encodedKey = key.getBytes(Charset.forName("UTF-16"));
+      lsmTrie.put(encodedKey, content);
 
       return Status.OK;
     } catch (Exception e) {
@@ -183,16 +189,20 @@ public class OrientDBClient extends DB {
   @Override
   public Status read(String table, String key, Set<String> fields, HashMap<String, ByteIterator> result) {
     try (ODatabaseDocument db = databasePool.acquire()) {
-      final ODictionary<ORecord> dictionary = db.getMetadata().getIndexManager().getDictionary();
-      final ODocument document = dictionary.get(key);
-      if (document != null) {
+      final byte[] encodedKey = key.getBytes("UTF-16");
+      final byte[] content = lsmTrie.get(encodedKey);
+
+      if (content != null) {
+        final ODocument document = new ODocument(content);
+        document.setClassName(CLASS);
+
         if (fields != null) {
           for (String field : fields) {
-            result.put(field, new StringByteIterator((String) document.field(field)));
+            result.put(field, new StringByteIterator(document.field(field)));
           }
         } else {
           for (String field : document.fieldNames()) {
-            result.put(field, new StringByteIterator((String) document.field(field)));
+            result.put(field, new StringByteIterator(document.field(field)));
           }
         }
         return Status.OK;
@@ -216,25 +226,17 @@ public class OrientDBClient extends DB {
    */
   @Override
   public Status update(String table, String key, HashMap<String, ByteIterator> values) {
-    while (true) {
-      try (ODatabaseDocument db = databasePool.acquire()) {
-        final ODictionary<ORecord> dictionary = db.getMetadata().getIndexManager().getDictionary();
-        final ODocument document = dictionary.get(key);
-        if (document != null) {
-          for (Map.Entry<String, String> entry : StringByteIterator.getStringMap(values).entrySet()) {
-            document.field(entry.getKey(), entry.getValue());
-          }
+    final ODocument document = new ODocument(CLASS);
 
-          document.save();
-          return Status.OK;
-        }
-      } catch (OConcurrentModificationException cme) {
-        continue;
-      } catch (Exception e) {
-        e.printStackTrace();
-        return Status.ERROR;
-      }
+    for (Map.Entry<String, String> entry : StringByteIterator.getStringMap(values).entrySet()) {
+      document.field(entry.getKey(), entry.getValue());
     }
+
+    final byte[] content = document.toStream();
+    final byte[] encodedKey = key.getBytes(Charset.forName("UTF-16"));
+    lsmTrie.put(encodedKey, content);
+
+    return Status.OK;
   }
 
   /**
