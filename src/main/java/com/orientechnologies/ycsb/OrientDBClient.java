@@ -4,8 +4,11 @@ import com.orientechnologies.lsmtrie.OLSMTrie;
 import com.orientechnologies.orient.core.config.OGlobalConfiguration;
 import com.orientechnologies.orient.core.db.*;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
+import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.dictionary.ODictionary;
 import com.orientechnologies.orient.core.exception.OConcurrentModificationException;
+import com.orientechnologies.orient.core.id.ORecordId;
+import com.orientechnologies.orient.core.index.OIndex;
 import com.orientechnologies.orient.core.index.OIndexCursor;
 import com.orientechnologies.orient.core.record.ORecord;
 import com.orientechnologies.orient.core.record.impl.ODocument;
@@ -40,7 +43,6 @@ public class OrientDBClient extends DB {
 
   private static boolean initialized   = false;
   private static int     clientCounter = 0;
-  private static volatile OLSMTrie lsmTrie;
 
   /**
    * Initialize any state for this DB. Called once per DB instance; there is one DB instance per client thread.
@@ -80,6 +82,7 @@ public class OrientDBClient extends DB {
 
         if (!db.getMetadata().getSchema().existsClass(CLASS)) {
           db.getMetadata().getSchema().createClass(CLASS);
+          db.command("create index keystore DICTIONARY_HASH_INDEX STRING");
         }
 
         db.close();
@@ -87,12 +90,6 @@ public class OrientDBClient extends DB {
         if (databasePool == null) {
           databasePool = new ODatabasePool(orientDB, dbName, user, password);
         }
-
-        String lsmTriePath = props.getProperty("orientdb.path",
-            "." + File.separator + "build" + File.separator + "databases" + File.separator + "lsmtrie");
-
-        lsmTrie = new OLSMTrie("ycsb", Paths.get(lsmTriePath));
-        lsmTrie.load();
 
         initialized = true;
       }
@@ -114,7 +111,6 @@ public class OrientDBClient extends DB {
         databasePool.close();
 
         orientDB.close();
-        lsmTrie.close();
       }
     } finally {
       initLock.unlock();
@@ -136,12 +132,12 @@ public class OrientDBClient extends DB {
   @Override
   public Status insert(String table, String key, HashMap<String, ByteIterator> values) {
     try (ODatabaseDocument db = databasePool.acquire()) {
-      final byte[] content = new byte[12];
       ThreadLocalRandom random = ThreadLocalRandom.current();
-      random.nextBytes(content);
+      final int clusterId = random.nextInt(64) + 1;
+      final long clusrePosition = random.nextInt(Integer.MAX_VALUE);
 
-      final byte[] encodedKey = key.getBytes(Charset.forName("UTF-16"));
-      lsmTrie.put(encodedKey, content);
+      final OIndex keystore = db.getMetadata().getIndexManager().getIndex("keystore");
+      keystore.put(key, new ORecordId(clusterId, clusrePosition));
 
       return Status.OK;
     } catch (Exception e) {
@@ -187,10 +183,10 @@ public class OrientDBClient extends DB {
   @Override
   public Status read(String table, String key, Set<String> fields, HashMap<String, ByteIterator> result) {
     try (ODatabaseDocument db = databasePool.acquire()) {
-      final byte[] encodedKey = key.getBytes("UTF-16");
-      final byte[] content = lsmTrie.get(encodedKey);
+      final OIndex keystore = db.getMetadata().getIndexManager().getIndex("keystore");
+      final OIdentifiable rid = (OIdentifiable) keystore.get(key);
 
-      if (content != null) {
+      if (rid != null) {
         return Status.OK;
       }
     } catch (Exception e) {
@@ -213,16 +209,15 @@ public class OrientDBClient extends DB {
   @Override
   public Status update(String table, String key, HashMap<String, ByteIterator> values) {
     try (ODatabaseDocument db = databasePool.acquire()) {
-      final byte[] content = new byte[12];
       ThreadLocalRandom random = ThreadLocalRandom.current();
-      random.nextBytes(content);
+      final int clusterId = random.nextInt(64) + 1;
+      final long clusrePosition = random.nextInt(Integer.MAX_VALUE);
 
-      final byte[] encodedKey = key.getBytes(Charset.forName("UTF-16"));
-      lsmTrie.put(encodedKey, content);
+      final OIndex keystore = db.getMetadata().getIndexManager().getIndex("keystore");
+      keystore.put(key, new ORecordId(clusterId, clusrePosition));
 
+      return Status.OK;
     }
-
-    return Status.OK;
   }
 
   /**
