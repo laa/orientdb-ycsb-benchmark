@@ -212,18 +212,15 @@ public class OrientDBClient extends DB {
    */
   @Override
   public Status update(String table, String key, HashMap<String, ByteIterator> values) {
-    final ODocument document = new ODocument(CLASS);
+    try (ODatabaseDocument db = databasePool.acquire()) {
+      final byte[] content = new byte[12];
+      ThreadLocalRandom random = ThreadLocalRandom.current();
+      random.nextBytes(content);
 
-    for (Map.Entry<String, String> entry : StringByteIterator.getStringMap(values).entrySet()) {
-      document.field(entry.getKey(), entry.getValue());
+      final byte[] encodedKey = key.getBytes(Charset.forName("UTF-16"));
+      lsmTrie.put(encodedKey, content);
+
     }
-
-    final byte[] content = new byte[12];
-    ThreadLocalRandom random = ThreadLocalRandom.current();
-    random.nextBytes(content);
-
-    final byte[] encodedKey = key.getBytes(Charset.forName("UTF-16"));
-    lsmTrie.put(encodedKey, content);
 
     return Status.OK;
   }
