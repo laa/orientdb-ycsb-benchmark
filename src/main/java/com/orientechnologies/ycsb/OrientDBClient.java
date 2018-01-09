@@ -15,6 +15,7 @@ import java.io.File;
 import java.nio.charset.Charset;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -135,13 +136,10 @@ public class OrientDBClient extends DB {
   @Override
   public Status insert(String table, String key, HashMap<String, ByteIterator> values) {
     try (ODatabaseDocument db = databasePool.acquire()) {
-      final ODocument document = new ODocument(CLASS);
+      final byte[] content = new byte[12];
+      ThreadLocalRandom random = ThreadLocalRandom.current();
+      random.nextBytes(content);
 
-      for (Map.Entry<String, String> entry : StringByteIterator.getStringMap(values).entrySet()) {
-        document.field(entry.getKey(), entry.getValue());
-      }
-
-      final byte[] content = document.toStream();
       final byte[] encodedKey = key.getBytes(Charset.forName("UTF-16"));
       lsmTrie.put(encodedKey, content);
 
@@ -193,18 +191,6 @@ public class OrientDBClient extends DB {
       final byte[] content = lsmTrie.get(encodedKey);
 
       if (content != null) {
-        final ODocument document = new ODocument(content);
-        document.setClassName(CLASS);
-
-        if (fields != null) {
-          for (String field : fields) {
-            result.put(field, new StringByteIterator(document.field(field)));
-          }
-        } else {
-          for (String field : document.fieldNames()) {
-            result.put(field, new StringByteIterator(document.field(field)));
-          }
-        }
         return Status.OK;
       }
     } catch (Exception e) {
@@ -232,7 +218,10 @@ public class OrientDBClient extends DB {
       document.field(entry.getKey(), entry.getValue());
     }
 
-    final byte[] content = document.toStream();
+    final byte[] content = new byte[12];
+    ThreadLocalRandom random = ThreadLocalRandom.current();
+    random.nextBytes(content);
+
     final byte[] encodedKey = key.getBytes(Charset.forName("UTF-16"));
     lsmTrie.put(encodedKey, content);
 
