@@ -116,7 +116,7 @@ public class OrientDBClient extends DB {
 
         env = create()
             // LMDB also needs to know how large our DB might be. Over-estimating is OK.
-            .setMapSize(12L * 1024 * 1024 * 1024)
+            .setMapSize(200L * 1024 * 1024 * 1024)
 
             // LMDB also needs to know how many DBs (Dbi) we want to store in this Env.
             .setMaxDbs(1)
