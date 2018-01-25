@@ -10,18 +10,29 @@ import com.orientechnologies.orient.core.exception.OConcurrentModificationExcept
 import com.orientechnologies.orient.core.index.OIndexCursor;
 import com.orientechnologies.orient.core.record.ORecord;
 import com.orientechnologies.orient.core.record.impl.ODocument;
+import com.sun.jna.Native;
+import com.sun.jna.Pointer;
 import com.yahoo.ycsb.*;
+import org.lmdbjava.Dbi;
+import org.lmdbjava.Env;
+import org.lmdbjava.Txn;
+import sun.misc.Cleaner;
+import sun.nio.ch.DirectBuffer;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+import static org.lmdbjava.DbiFlags.MDB_CREATE;
+import static org.lmdbjava.Env.create;
+import static org.lmdbjava.Env.open;
+
 /**
  * OrientDB client for YCSB framework.
- * <p>
  * Properties to set:
- * <p>
  * orientdb.path=path to file of local database<br>
  * orientdb.database=ycsb <br>
  * orientdb.user=admin <br>
@@ -41,6 +52,9 @@ public class OrientDBClient extends DB {
   private static boolean initialized   = false;
   private static int     clientCounter = 0;
 
+  private static volatile Env<ByteBuffer> env;
+  private static volatile Dbi<ByteBuffer> lmdb;
+
   /**
    * Initialize any state for this DB. Called once per DB instance; there is one DB instance per client thread.
    */
@@ -48,8 +62,10 @@ public class OrientDBClient extends DB {
     // initialize OrientDB driver
     final Properties props = getProperties();
 
-    String path = "embedded:" + props.getProperty("orientdb.path", "." + File.separator
-        + "build" + File.separator + "databases");
+    String path = "embedded:." + File.separator + "build" + File.separator + "databases" + File.separator + "odb";
+    File lmddbPath = new File("." + File.separator + "build" + File.separator + "databases" + File.separator + "lmdb");
+    String lmdbName = "ycsb";
+
     String dbName = props.getProperty("orientdb.database", "ycsb");
 
     String user = props.getProperty("orientdb.user", "admin");
@@ -88,6 +104,28 @@ public class OrientDBClient extends DB {
           databasePool = new ODatabasePool(orientDB, dbName, user, password);
         }
 
+        try {
+          lmddbPath = lmddbPath.getCanonicalFile();
+        } catch (IOException e) {
+          e.printStackTrace();
+        }
+
+        lmddbPath.mkdirs();
+
+        env = create()
+            // LMDB also needs to know how large our DB might be. Over-estimating is OK.
+            .setMapSize(12L * 1024 * 1024 * 1024)
+            // LMDB also needs to know how many DBs (Dbi) we want to store in this Env.
+            .setMaxDbs(1)
+            // Now let's open the Env. The same path can be concurrently opened and
+            // used in different processes, but do not open the same path twice in
+            // the same process at the same time.
+            .setMaxReaders(8).open(lmddbPath);
+
+        // We need a Dbi for each DB. A Dbi roughly equates to a sorted map. The
+        // MDB_CREATE flag causes the DB to be created if it doesn't already exist.
+        lmdb = env.openDbi(lmdbName, MDB_CREATE);
+
         initialized = true;
       }
     } catch (Exception e) {
@@ -108,6 +146,9 @@ public class OrientDBClient extends DB {
         databasePool.close();
 
         orientDB.close();
+
+        lmdb.close();
+        env.close();
       }
     } finally {
       initLock.unlock();
@@ -135,9 +176,23 @@ public class OrientDBClient extends DB {
         document.field(entry.getKey(), entry.getValue());
       }
 
-      document.save();
-      final ODictionary<ORecord> dictionary = db.getMetadata().getIndexManager().getDictionary();
-      dictionary.put(key, document);
+      final byte[] doc = document.toStream();
+      final byte[] dkey = key.getBytes();
+
+      try (Txn<ByteBuffer> txn = env.txnWrite()) {
+        Pointer keyPointer = new Pointer(Native.malloc(dkey.length));
+        keyPointer.write(0, dkey, 0, dkey.length);
+
+        Pointer docPointer = new Pointer(Native.malloc(doc.length));
+        docPointer.write(0, doc, 0, doc.length);
+
+        lmdb.put(txn, keyPointer.getByteBuffer(0, dkey.length), docPointer.getByteBuffer(0, doc.length));
+
+        // An explicit commit is required, otherwise Txn.close() rolls it back.
+        txn.commit();
+        Native.free(Pointer.nativeValue(keyPointer));
+        Native.free(Pointer.nativeValue(docPointer));
+      }
 
       return Status.OK;
     } catch (Exception e) {
@@ -183,20 +238,43 @@ public class OrientDBClient extends DB {
   @Override
   public Status read(String table, String key, Set<String> fields, HashMap<String, ByteIterator> result) {
     try (ODatabaseDocument db = databasePool.acquire()) {
-      final ODictionary<ORecord> dictionary = db.getMetadata().getIndexManager().getDictionary();
-      final ODocument document = dictionary.get(key);
-      if (document != null) {
-        if (fields != null) {
-          for (String field : fields) {
-            result.put(field, new StringByteIterator((String) document.field(field)));
+      final byte[] dkey = key.getBytes();
+      Pointer keyPointer = new Pointer(Native.malloc(dkey.length));
+      keyPointer.write(0, dkey, 0, dkey.length);
+
+      try (Txn<ByteBuffer> rtx = env.txnRead()) {
+        final ByteBuffer found = lmdb.get(rtx, keyPointer.getByteBuffer(0, dkey.length));
+        if (found != null) {
+          final ODocument document = new ODocument(CLASS);
+          final byte[] binDoc = new byte[found.limit()];
+          found.position(0);
+          found.get(binDoc);
+
+          document.fromStream(binDoc);
+
+          if (fields != null) {
+            for (String field : fields) {
+              result.put(field, new StringByteIterator((String) document.field(field)));
+            }
+          } else {
+            for (String field : document.fieldNames()) {
+              result.put(field, new StringByteIterator((String) document.field(field)));
+            }
           }
-        } else {
-          for (String field : document.fieldNames()) {
-            result.put(field, new StringByteIterator((String) document.field(field)));
+
+          Native.free(Pointer.nativeValue(keyPointer));
+
+          if (found instanceof DirectBuffer) {
+            final Cleaner cleaner = ((DirectBuffer) found).cleaner();
+            if (cleaner != null) {
+              cleaner.clean();
+            }
           }
+          return Status.OK;
         }
-        return Status.OK;
       }
+
+      Native.free(Pointer.nativeValue(keyPointer));
     } catch (Exception e) {
       e.printStackTrace();
     }
@@ -216,25 +294,53 @@ public class OrientDBClient extends DB {
    */
   @Override
   public Status update(String table, String key, HashMap<String, ByteIterator> values) {
-    while (true) {
-      try (ODatabaseDocument db = databasePool.acquire()) {
-        final ODictionary<ORecord> dictionary = db.getMetadata().getIndexManager().getDictionary();
-        final ODocument document = dictionary.get(key);
-        if (document != null) {
+    final byte[] dkey = key.getBytes();
+
+    try (ODatabaseDocument db = databasePool.acquire()) {
+      try (Txn<ByteBuffer> txn = env.txnWrite()) {
+        Pointer keyPointer = new Pointer(Native.malloc(dkey.length));
+        keyPointer.write(0, dkey, 0, dkey.length);
+
+        final ByteBuffer found = lmdb.get(txn, keyPointer.getByteBuffer(0, dkey.length));
+        if (found != null) {
+          final ODocument document = new ODocument(CLASS);
+          final byte[] binDoc = new byte[found.limit()];
+          found.position(0);
+          found.get(binDoc);
+
+          document.fromStream(binDoc);
+
           for (Map.Entry<String, String> entry : StringByteIterator.getStringMap(values).entrySet()) {
             document.field(entry.getKey(), entry.getValue());
           }
 
-          document.save();
+          final byte[] doc = document.toStream();
+          Pointer docPointer = new Pointer(Native.malloc(doc.length));
+          docPointer.write(0, doc, 0, doc.length);
+
+          lmdb.put(txn, keyPointer.getByteBuffer(0, dkey.length), docPointer.getByteBuffer(0, doc.length));
+
+          txn.commit();
+          Native.free(Pointer.nativeValue(keyPointer));
+          Native.free(Pointer.nativeValue(docPointer));
+
+          if (found instanceof DirectBuffer) {
+            final Cleaner cleaner = ((DirectBuffer) found).cleaner();
+            if (cleaner != null) {
+              cleaner.clean();
+            }
+          }
+
           return Status.OK;
         }
-      } catch (OConcurrentModificationException cme) {
-        continue;
-      } catch (Exception e) {
-        e.printStackTrace();
-        return Status.ERROR;
+
+        Native.free(Pointer.nativeValue(keyPointer));
       }
+    } catch (Exception e) {
+      e.printStackTrace();
     }
+
+    return Status.ERROR;
   }
 
   /**
