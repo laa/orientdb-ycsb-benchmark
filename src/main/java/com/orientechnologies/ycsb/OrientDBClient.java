@@ -29,6 +29,8 @@ import java.util.concurrent.locks.ReentrantLock;
 import static org.lmdbjava.DbiFlags.MDB_CREATE;
 import static org.lmdbjava.Env.create;
 import static org.lmdbjava.Env.open;
+import static org.lmdbjava.EnvFlags.MDB_MAPASYNC;
+import static org.lmdbjava.EnvFlags.MDB_NOSYNC;
 
 /**
  * OrientDB client for YCSB framework.
@@ -115,12 +117,13 @@ public class OrientDBClient extends DB {
         env = create()
             // LMDB also needs to know how large our DB might be. Over-estimating is OK.
             .setMapSize(12L * 1024 * 1024 * 1024)
+
             // LMDB also needs to know how many DBs (Dbi) we want to store in this Env.
             .setMaxDbs(1)
             // Now let's open the Env. The same path can be concurrently opened and
             // used in different processes, but do not open the same path twice in
             // the same process at the same time.
-            .setMaxReaders(8).open(lmddbPath);
+            .setMaxReaders(8).open(lmddbPath, MDB_NOSYNC);
 
         // We need a Dbi for each DB. A Dbi roughly equates to a sorted map. The
         // MDB_CREATE flag causes the DB to be created if it doesn't already exist.
