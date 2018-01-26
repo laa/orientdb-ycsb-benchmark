@@ -57,6 +57,9 @@ public class OrientDBClient extends DB {
   private static volatile Env<ByteBuffer> env;
   private static volatile Dbi<ByteBuffer> lmdb;
 
+  private static final Timer timer = new Timer();
+  private static volatile TimerTask syncTask;
+
   /**
    * Initialize any state for this DB. Called once per DB instance; there is one DB instance per client thread.
    */
@@ -129,6 +132,15 @@ public class OrientDBClient extends DB {
         // MDB_CREATE flag causes the DB to be created if it doesn't already exist.
         lmdb = env.openDbi(lmdbName, MDB_CREATE);
 
+        syncTask = new TimerTask() {
+          @Override
+          public void run() {
+            env.sync(true);
+          }
+        };
+
+        timer.schedule(syncTask, 1000, 1000);
+
         initialized = true;
       }
     } catch (Exception e) {
@@ -149,6 +161,8 @@ public class OrientDBClient extends DB {
         databasePool.close();
 
         orientDB.close();
+
+        syncTask.cancel();
 
         lmdb.close();
         env.close();
