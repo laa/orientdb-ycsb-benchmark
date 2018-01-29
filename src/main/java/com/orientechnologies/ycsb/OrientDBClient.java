@@ -1,6 +1,5 @@
 package com.orientechnologies.ycsb;
 
-import com.orientechnologies.orient.core.Orient;
 import com.orientechnologies.orient.core.config.OGlobalConfiguration;
 import com.orientechnologies.orient.core.db.*;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
@@ -119,7 +118,7 @@ public class OrientDBClient extends DB {
 
         env = create()
             // LMDB also needs to know how large our DB might be. Over-estimating is OK.
-            .setMapSize(300L * 1024 * 1024 * 1024)
+            .setMapSize(10L * 1024 * 1024 * 1024)
 
             // LMDB also needs to know how many DBs (Dbi) we want to store in this Env.
             .setMaxDbs(1)
@@ -136,6 +135,7 @@ public class OrientDBClient extends DB {
           @Override
           public void run() {
             env.sync(true);
+            System.out.println("Sync env");
           }
         };
 
