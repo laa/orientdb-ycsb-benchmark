@@ -43,6 +43,7 @@ public class OrientDBClient extends DB {
 
   private static boolean initialized   = false;
   private static int     clientCounter = 0;
+  private static volatile OLSMTrie lsmTrie;
 
   /**
    * Initialize any state for this DB. Called once per DB instance; there is one DB instance per client thread.
@@ -91,6 +92,12 @@ public class OrientDBClient extends DB {
           databasePool = new ODatabasePool(orientDB, dbName, user, password);
         }
 
+        String lsmTriePath = props.getProperty("orientdb.path",
+            "." + File.separator + "build" + File.separator + "databases" + File.separator + "lsmtrie");
+
+        lsmTrie = new OLSMTrie("ycsb", Paths.get(lsmTriePath));
+        lsmTrie.load();
+
         initialized = true;
       }
     } catch (Exception e) {
@@ -111,6 +118,8 @@ public class OrientDBClient extends DB {
         databasePool.close();
 
         orientDB.close();
+
+        lsmTrie.close();
       }
     } finally {
       initLock.unlock();
@@ -132,12 +141,15 @@ public class OrientDBClient extends DB {
   @Override
   public Status insert(String table, String key, HashMap<String, ByteIterator> values) {
     try (ODatabaseDocument db = databasePool.acquire()) {
-      ThreadLocalRandom random = ThreadLocalRandom.current();
-      final int clusterId = random.nextInt(64) + 1;
-      final long clusrePosition = random.nextInt(Integer.MAX_VALUE);
+      final ODocument document = new ODocument(CLASS);
 
-      final OIndex keystore = db.getMetadata().getIndexManager().getIndex("keystore");
-      keystore.put(key, new ORecordId(clusterId, clusrePosition));
+      for (Map.Entry<String, String> entry : StringByteIterator.getStringMap(values).entrySet()) {
+        document.field(entry.getKey(), entry.getValue());
+      }
+
+      final byte[] content = document.toStream();
+      final byte[] encodedKey = key.getBytes(Charset.forName("UTF-16"));
+      lsmTrie.put(encodedKey, content);
 
       return Status.OK;
     } catch (Exception e) {
@@ -183,10 +195,22 @@ public class OrientDBClient extends DB {
   @Override
   public Status read(String table, String key, Set<String> fields, HashMap<String, ByteIterator> result) {
     try (ODatabaseDocument db = databasePool.acquire()) {
-      final OIndex keystore = db.getMetadata().getIndexManager().getIndex("keystore");
-      final OIdentifiable rid = (OIdentifiable) keystore.get(key);
+      final byte[] encodedKey = key.getBytes("UTF-16");
+      final byte[] content = lsmTrie.get(encodedKey);
 
-      if (rid != null) {
+      if (content != null) {
+        final ODocument document = new ODocument(content);
+        document.setClassName(CLASS);
+
+        if (fields != null) {
+          for (String field : fields) {
+            result.put(field, new StringByteIterator(document.field(field)));
+          }
+        } else {
+          for (String field : document.fieldNames()) {
+            result.put(field, new StringByteIterator(document.field(field)));
+          }
+        }
         return Status.OK;
       }
     } catch (Exception e) {
@@ -208,16 +232,28 @@ public class OrientDBClient extends DB {
    */
   @Override
   public Status update(String table, String key, HashMap<String, ByteIterator> values) {
-    try (ODatabaseDocument db = databasePool.acquire()) {
-      ThreadLocalRandom random = ThreadLocalRandom.current();
-      final int clusterId = random.nextInt(64) + 1;
-      final long clusrePosition = random.nextInt(Integer.MAX_VALUE);
+    try {
+      byte[] encodedKey = key.getBytes("UTF-16");
+      byte[] content = lsmTrie.get(encodedKey);
+      if (content != null) {
+        final ODocument document = new ODocument(CLASS);
 
-      final OIndex keystore = db.getMetadata().getIndexManager().getIndex("keystore");
-      keystore.put(key, new ORecordId(clusterId, clusrePosition));
+        for (Map.Entry<String, String> entry : StringByteIterator.getStringMap(values).entrySet()) {
+          document.field(entry.getKey(), entry.getValue());
+        }
 
-      return Status.OK;
+        content = document.toStream();
+        lsmTrie.put(encodedKey, content);
+
+        return Status.OK;
+      }
+
+      return Status.ERROR;
+    } catch (Exception e) {
+      e.printStackTrace();
+      return Status.ERROR;
     }
+
   }
 
   /**
