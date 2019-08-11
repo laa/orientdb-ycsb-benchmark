@@ -60,8 +60,6 @@ public class OrientDBClient extends DB {
     try {
       clientCounter++;
       if (!initialized) {
-        OGlobalConfiguration.dumpConfiguration(System.out);
-
         System.out.println("OrientDB loading database with path = " + path);
         orientDB = new OrientDB(path, OrientDBConfig.defaultConfig());
 
