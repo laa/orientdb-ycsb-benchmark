@@ -21,6 +21,7 @@ dependencies {
 }
 
 task benchmark  {
+  doLast {
     def hdrhistogramFileoutput = System.getProperty("ycsb.hdrhistogram.fileoutput");
     def hdrhistogramOutputPath = System.getProperty("ycsb.hdrhistogram.output.path");
     def threads = System.getProperty("ycsb.threads");
@@ -208,4 +209,5 @@ task benchmark  {
     eist.start();
 
     process.waitFor()
+  }
 }
