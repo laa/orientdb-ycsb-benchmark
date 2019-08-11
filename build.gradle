@@ -20,7 +20,7 @@ dependencies {
     testCompile group: 'org.testng', name: 'testng', version: '6.1.1'
 }
 
-task benchmark << {
+task benchmark  {
     def hdrhistogramFileoutput = System.getProperty("ycsb.hdrhistogram.fileoutput");
     def hdrhistogramOutputPath = System.getProperty("ycsb.hdrhistogram.output.path");
     def threads = System.getProperty("ycsb.threads");
