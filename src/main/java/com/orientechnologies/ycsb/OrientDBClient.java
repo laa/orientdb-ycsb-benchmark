@@ -1,10 +1,7 @@
 package com.orientechnologies.ycsb;
 
-import com.orientechnologies.orient.core.Orient;
-import com.orientechnologies.orient.core.config.OGlobalConfiguration;
 import com.orientechnologies.orient.core.db.*;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.dictionary.ODictionary;
 import com.orientechnologies.orient.core.exception.OConcurrentModificationException;
 import com.orientechnologies.orient.core.index.OIndexCursor;
@@ -22,27 +19,27 @@ import java.util.concurrent.locks.ReentrantLock;
  * <p>
  * Properties to set:
  * <p>
- * orientdb.path=path to file of local database<br>
- * orientdb.database=ycsb <br>
- * orientdb.user=admin <br>
- * orientdb.password=admin <br>
+ * orientdb.path=path to file of local database<br> orientdb.database=ycsb <br> orientdb.user=admin
+ * <br> orientdb.password=admin <br>
  *
  * @author Luca Garulli
  */
 public class OrientDBClient extends DB {
+
   private static final String CLASS = "usertable";
 
-  private static final Lock    initLock  = new ReentrantLock();
-  private static       boolean dbCreated = false;
+  private static final Lock initLock = new ReentrantLock();
+  private static boolean dbCreated = false;
 
   private static volatile ODatabasePool databasePool;
-  private static volatile OrientDB      orientDB;
+  private static volatile OrientDB orientDB;
 
-  private static boolean initialized   = false;
-  private static int     clientCounter = 0;
+  private static boolean initialized = false;
+  private static int clientCounter = 0;
 
   /**
-   * Initialize any state for this DB. Called once per DB instance; there is one DB instance per client thread.
+   * Initialize any state for this DB. Called once per DB instance; there is one DB instance per
+   * client thread.
    */
   public void init() throws DBException {
     // initialize OrientDB driver
@@ -54,7 +51,7 @@ public class OrientDBClient extends DB {
 
     String user = props.getProperty("orientdb.user", "admin");
     String password = props.getProperty("orientdb.password", "admin");
-    Boolean newdb = Boolean.parseBoolean(props.getProperty("orientdb.newdb", "false"));
+    boolean newdb = Boolean.parseBoolean(props.getProperty("orientdb.newdb", "false"));
 
     initLock.lock();
     try {
@@ -69,7 +66,8 @@ public class OrientDBClient extends DB {
         }
 
         if (!orientDB.exists(dbName)) {
-          orientDB.create(dbName, ODatabaseType.PLOCAL);
+          orientDB.execute("create database " + dbName +
+              " plocal users (admin identified by 'admin' role admin)");
 
           dbCreated = true;
         }
@@ -89,7 +87,8 @@ public class OrientDBClient extends DB {
         initialized = true;
       }
     } catch (Exception e) {
-      System.err.println("Could not initialize OrientDB connection pool for Loader: " + e.toString());
+      System.err.println("Could not initialize OrientDB connection pool for Loader: " + e);
+      //noinspection CallToPrintStackTrace
       e.printStackTrace();
     } finally {
       initLock.unlock();
@@ -98,7 +97,7 @@ public class OrientDBClient extends DB {
   }
 
   @Override
-  public void cleanup() throws DBException {
+  public void cleanup() {
     initLock.lock();
     try {
       clientCounter--;
@@ -114,15 +113,14 @@ public class OrientDBClient extends DB {
   }
 
   /**
-   * Insert a record in the database. Any field/value pairs in the specified values
-   * HashMap will be written into the record with the specified
-   * record key.
+   * Insert a record in the database. Any field/value pairs in the specified values HashMap will be
+   * written into the record with the specified record key.
    *
    * @param table  The name of the table
    * @param key    The record key of the record to insert.
    * @param values A HashMap of field/value pairs to insert in the record
-   *
-   * @return Zero on success, a non-zero error code on error. See this class's description for a discussion of error codes.
+   * @return Zero on success, a non-zero error code on error. See this class's description for a
+   * discussion of error codes.
    */
   @Override
   public Status insert(String table, String key, HashMap<String, ByteIterator> values) {
@@ -149,8 +147,8 @@ public class OrientDBClient extends DB {
    *
    * @param table The name of the table
    * @param key   The record key of the record to delete.
-   *
-   * @return Zero on success, a non-zero error code on error. See this class's description for a discussion of error codes.
+   * @return Zero on success, a non-zero error code on error. See this class's description for a
+   * discussion of error codes.
    */
   @Override
   public Status delete(String table, String key) {
@@ -169,17 +167,18 @@ public class OrientDBClient extends DB {
   }
 
   /**
-   * Read a record from the database. Each field/value pair from the result will be stored in a HashMap.
+   * Read a record from the database. Each field/value pair from the result will be stored in a
+   * HashMap.
    *
    * @param table  The name of the table
    * @param key    The record key of the record to read.
    * @param fields The list of fields to read, or null for all of them
    * @param result A HashMap of field/value pairs for the result
-   *
    * @return Zero on success, a non-zero error code on error or "not found".
    */
   @Override
-  public Status read(String table, String key, Set<String> fields, HashMap<String, ByteIterator> result) {
+  public Status read(String table, String key, Set<String> fields,
+      HashMap<String, ByteIterator> result) {
     try (ODatabaseDocument db = databasePool.acquire()) {
       final ODictionary<ORecord> dictionary = db.getMetadata().getIndexManager().getDictionary();
       final ODocument document = dictionary.get(key);
@@ -202,15 +201,15 @@ public class OrientDBClient extends DB {
   }
 
   /**
-   * Update a record in the database. Any field/value pairs in the specified values
-   * HashMap will be written into the record with the specified
-   * record key, overwriting any existing values with the same field name.
+   * Update a record in the database. Any field/value pairs in the specified values HashMap will be
+   * written into the record with the specified record key, overwriting any existing values with the
+   * same field name.
    *
    * @param table  The name of the table
    * @param key    The record key of the record to write.
    * @param values A HashMap of field/value pairs to update in the record
-   *
-   * @return Zero on success, a non-zero error code on error. See this class's description f or a discussion of error codes.
+   * @return Zero on success, a non-zero error code on error. See this class's description f or a
+   * discussion of error codes.
    */
   @Override
   public Status update(String table, String key, HashMap<String, ByteIterator> values) {
@@ -219,7 +218,8 @@ public class OrientDBClient extends DB {
         final ODictionary<ORecord> dictionary = db.getMetadata().getIndexManager().getDictionary();
         final ODocument document = dictionary.get(key);
         if (document != null) {
-          for (Map.Entry<String, String> entry : StringByteIterator.getStringMap(values).entrySet()) {
+          for (Map.Entry<String, String> entry : StringByteIterator.getStringMap(values)
+              .entrySet()) {
             document.field(entry.getKey(), entry.getValue());
           }
 
@@ -236,16 +236,17 @@ public class OrientDBClient extends DB {
   }
 
   /**
-   * Perform a range scan for a set of records in the database.
-   * Each field/value pair from the result will be stored in a HashMap.
+   * Perform a range scan for a set of records in the database. Each field/value pair from the
+   * result will be stored in a HashMap.
    *
    * @param table       The name of the table
    * @param startkey    The record key of the first record to read.
    * @param recordcount The number of records to read
    * @param fields      The list of fields to read, or null for all of them
-   * @param result      A Vector of HashMaps, where each HashMap is a set field/value pairs for one record
-   *
-   * @return Zero on success, a non-zero error code on error. See this class's description for a discussion of error codes.
+   * @param result      A Vector of HashMaps, where each HashMap is a set field/value pairs for one
+   *                    record
+   * @return Zero on success, a non-zero error code on error. See this class's description for a
+   * discussion of error codes.
    */
   @Override
   public Status scan(String table, String startkey, int recordcount, Set<String> fields,
@@ -273,8 +274,9 @@ public class OrientDBClient extends DB {
 
         currentCount++;
 
-        if (currentCount >= recordcount)
+        if (currentCount >= recordcount) {
           break;
+        }
       }
 
       return Status.OK;
