@@ -44,7 +44,8 @@ tasks.register("benchmark") {
         val requestdistribution = System.getProperty("ycsb.requestdistribution")
 
         val javaExec = System.getProperty("java.home") + "/bin/java"
-        val classPath = sourceSets["main"].runtimeClasspath.files.joinToString(separator = File.pathSeparator)
+        val classPath =
+            sourceSets["main"].runtimeClasspath.files.joinToString(separator = File.pathSeparator)
 
         val params = mutableListOf(javaExec)
 
@@ -102,28 +103,25 @@ tasks.register("benchmark") {
 
         // Continue from ProcessBuilder
         val processBuilder = ProcessBuilder(params)
-        processBuilder.inheritIO()
-
         val process = processBuilder.start()
 
+        val eist = Thread {
+            process.errorStream.bufferedReader().lines().forEach { line ->
+                println(line)
+            }
+        }
+        eist.isDaemon = true
+
+
         val ist = Thread {
-            process.inputStream.bufferedReader().useLines { lines ->
-                lines.forEach { line ->
-                    println(line)
-                }
+            process.inputStream.bufferedReader().lines().forEach { line ->
+                println(line)
             }
         }
         ist.isDaemon = true
         ist.start()
 
-        val eist = Thread {
-            process.errorStream.bufferedReader().useLines { lines ->
-                lines.forEach { line ->
-                    println(line)
-                }
-            }
-        }
-        eist.isDaemon = true
+
         eist.start()
 
         // Wait for the process to complete
