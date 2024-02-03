@@ -2,10 +2,9 @@ package com.orientechnologies.ycsb;
 
 import com.orientechnologies.orient.core.db.*;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
-import com.orientechnologies.orient.core.dictionary.ODictionary;
 import com.orientechnologies.orient.core.exception.OConcurrentModificationException;
-import com.orientechnologies.orient.core.index.OIndexCursor;
-import com.orientechnologies.orient.core.record.ORecord;
+import com.orientechnologies.orient.core.metadata.schema.OClass.INDEX_TYPE;
+import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.yahoo.ycsb.*;
 
@@ -29,6 +28,7 @@ public class OrientDBClient extends DB {
   private static final String CLASS = "usertable";
 
   private static final Lock initLock = new ReentrantLock();
+  public static final String YCSB_INDEX_KEY = "$ycsb_index_key";
   private static boolean dbCreated = false;
 
   private static volatile ODatabasePool databasePool;
@@ -75,7 +75,9 @@ public class OrientDBClient extends DB {
         ODatabaseDocument db = orientDB.open(dbName, user, password);
 
         if (!db.getMetadata().getSchema().existsClass(CLASS)) {
-          db.getMetadata().getSchema().createClass(CLASS);
+          var clz = db.getMetadata().getSchema().createClass(CLASS);
+          var prop = clz.createProperty(YCSB_INDEX_KEY, OType.STRING);
+          prop.createIndex(INDEX_TYPE.UNIQUE);
         }
 
         db.close();
@@ -103,7 +105,6 @@ public class OrientDBClient extends DB {
       clientCounter--;
       if (clientCounter == 0) {
         databasePool.close();
-
         orientDB.close();
       }
     } finally {
@@ -124,21 +125,22 @@ public class OrientDBClient extends DB {
    */
   @Override
   public Status insert(String table, String key, HashMap<String, ByteIterator> values) {
-    try (ODatabaseDocument db = databasePool.acquire()) {
+    try (ODatabaseDocument ignored = databasePool.acquire()) {
       final ODocument document = new ODocument(CLASS);
 
       for (Map.Entry<String, String> entry : StringByteIterator.getStringMap(values).entrySet()) {
-        document.field(entry.getKey(), entry.getValue());
+        document.setProperty(entry.getKey(), entry.getValue());
       }
 
+      document.setProperty(YCSB_INDEX_KEY, key);
       document.save();
-      final ODictionary<ORecord> dictionary = db.getMetadata().getIndexManager().getDictionary();
-      dictionary.put(key, document);
 
       return Status.OK;
     } catch (Exception e) {
+      //noinspection CallToPrintStackTrace
       e.printStackTrace();
     }
+
     return Status.ERROR;
   }
 
@@ -154,12 +156,12 @@ public class OrientDBClient extends DB {
   public Status delete(String table, String key) {
     while (true) {
       try (ODatabaseDocument db = databasePool.acquire()) {
-        final ODictionary<ORecord> dictionary = db.getMetadata().getIndexManager().getDictionary();
-        dictionary.remove(key);
+        db.query("delete from " + CLASS + " where " + YCSB_INDEX_KEY + " = ?", key);
         return Status.OK;
       } catch (OConcurrentModificationException cme) {
-        continue;
+        //ignore
       } catch (Exception e) {
+        //noinspection CallToPrintStackTrace
         e.printStackTrace();
         return Status.ERROR;
       }
@@ -180,21 +182,29 @@ public class OrientDBClient extends DB {
   public Status read(String table, String key, Set<String> fields,
       HashMap<String, ByteIterator> result) {
     try (ODatabaseDocument db = databasePool.acquire()) {
-      final ODictionary<ORecord> dictionary = db.getMetadata().getIndexManager().getDictionary();
-      final ODocument document = dictionary.get(key);
-      if (document != null) {
-        if (fields != null) {
-          for (String field : fields) {
-            result.put(field, new StringByteIterator((String) document.field(field)));
+      try (var queryResult = db.query("select * from " + CLASS + " where " + YCSB_INDEX_KEY +
+          " = ?", key)) {
+        var document = queryResult.next().getElement();
+        if (document.isPresent()) {
+          if (fields != null) {
+            for (String field : fields) {
+              var doc = document.get();
+              result.put(field, new StringByteIterator(doc.getProperty(field)));
+            }
+          } else {
+            var doc = document.get();
+            for (String field : doc.getPropertyNames()) {
+              result.put(field, new StringByteIterator(doc.getProperty(field)));
+            }
           }
+          return Status.OK;
         } else {
-          for (String field : document.fieldNames()) {
-            result.put(field, new StringByteIterator((String) document.field(field)));
-          }
+          System.out.println("Document was not found");
+          return Status.ERROR;
         }
-        return Status.OK;
       }
     } catch (Exception e) {
+      //noinspection CallToPrintStackTrace
       e.printStackTrace();
     }
     return Status.ERROR;
@@ -215,20 +225,29 @@ public class OrientDBClient extends DB {
   public Status update(String table, String key, HashMap<String, ByteIterator> values) {
     while (true) {
       try (ODatabaseDocument db = databasePool.acquire()) {
-        final ODictionary<ORecord> dictionary = db.getMetadata().getIndexManager().getDictionary();
-        final ODocument document = dictionary.get(key);
-        if (document != null) {
-          for (Map.Entry<String, String> entry : StringByteIterator.getStringMap(values)
-              .entrySet()) {
-            document.field(entry.getKey(), entry.getValue());
-          }
+        try (var queryResult = db.query("select * from " + CLASS + " where " + YCSB_INDEX_KEY +
+            " = ?", key)) {
+          var document = queryResult.next().getElement();
 
-          document.save();
-          return Status.OK;
+          if (document.isPresent()) {
+            var doc = document.get();
+            for (Map.Entry<String, String> entry : StringByteIterator.getStringMap(values)
+                .entrySet()) {
+
+              doc.setProperty(entry.getKey(), entry.getValue());
+            }
+
+            doc.save();
+            return Status.OK;
+          } else {
+            System.out.println("Document was not found");
+            return Status.ERROR;
+          }
         }
       } catch (OConcurrentModificationException cme) {
-        continue;
+        //ignore
       } catch (Exception e) {
+        //noinspection CallToPrintStackTrace
         e.printStackTrace();
         return Status.ERROR;
       }
@@ -252,35 +271,45 @@ public class OrientDBClient extends DB {
   public Status scan(String table, String startkey, int recordcount, Set<String> fields,
       Vector<HashMap<String, ByteIterator>> result) {
     try (ODatabaseDocument db = databasePool.acquire()) {
-      final ODictionary<ORecord> dictionary = db.getMetadata().getIndexManager().getDictionary();
-      final OIndexCursor entries = dictionary.getIndex().iterateEntriesMajor(startkey, true, true);
+      try (var queryResults = db.query("select * from " + CLASS + " where " + YCSB_INDEX_KEY +
+          " >=  ?", startkey)) {
+        int currentCount = 0;
 
-      int currentCount = 0;
-      while (entries.hasNext()) {
-        final ODocument document = entries.next().getRecord();
+        while (queryResults.hasNext()) {
+          var queryResult = queryResults.next();
+          var documentResult = queryResult.getElement();
 
-        final HashMap<String, ByteIterator> map = new HashMap<>();
-        result.add(map);
-
-        if (fields != null) {
-          for (String field : fields) {
-            map.put(field, new StringByteIterator((String) document.field(field)));
+          if (documentResult.isEmpty()) {
+            System.out.println("Document was not found");
+            return Status.ERROR;
           }
-        } else {
-          for (String field : document.fieldNames()) {
-            map.put(field, new StringByteIterator((String) document.field(field)));
+
+          final HashMap<String, ByteIterator> map = new HashMap<>();
+          result.add(map);
+
+          var document = documentResult.get();
+          if (fields != null) {
+            for (String field : fields) {
+              map.put(field, new StringByteIterator(document.getProperty(field)));
+            }
+          } else {
+            for (String field : document.getPropertyNames()) {
+              map.put(field, new StringByteIterator(document.getProperty(field)));
+            }
+          }
+
+          currentCount++;
+
+          if (currentCount >= recordcount) {
+            break;
           }
         }
 
-        currentCount++;
-
-        if (currentCount >= recordcount) {
-          break;
-        }
+        return Status.OK;
       }
 
-      return Status.OK;
     } catch (Exception e) {
+      //noinspection CallToPrintStackTrace
       e.printStackTrace();
     }
     return Status.ERROR;
