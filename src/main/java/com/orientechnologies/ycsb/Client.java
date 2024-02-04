@@ -642,6 +642,11 @@ public class Client {
       props.setProperty("orientdb.newdb", orientDbNew);
     }
 
+    final String orientDbName = getSystemProperty("orientdb.database", settings);
+    if (orientDbNew != null) {
+      props.setProperty("orientdb.database", orientDbName);
+    }
+
     applyODBConfiguration(settings);
 
     props.setProperty(DO_TRANSACTIONS_PROPERTY, String.valueOf(dotransactions));
