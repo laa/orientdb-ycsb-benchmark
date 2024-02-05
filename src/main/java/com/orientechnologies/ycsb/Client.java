@@ -643,7 +643,7 @@ public class Client {
     }
 
     final String orientDbName = getSystemProperty("orientdb.database", settings);
-    if (orientDbNew != null) {
+    if (orientDbName != null) {
       props.setProperty("orientdb.database", orientDbName);
     }
 
