@@ -10,7 +10,7 @@ repositories {
 val jacksonApiVersion by extra { "2.6.1" }
 
 dependencies {
-    implementation("com.orientechnologies:orientdb-core:3.2.27")
+    implementation("com.orientechnologies:orientdb-core:4.0.0-SNAPSHOT")
     implementation("com.fasterxml.jackson.core:jackson-core:2.16.1")
     implementation("org.hdrhistogram:HdrHistogram:2.1.12")
     implementation("org.apache.commons:commons-csv:1.10.0")
